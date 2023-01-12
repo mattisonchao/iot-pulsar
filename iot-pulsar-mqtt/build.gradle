@@ -1,0 +1,10 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    implementation project(":iot-pulsar-common")
+    implementation project(":iot-pulsar-agent")
+    implementation "io.netty:netty-codec-mqtt:4.1.86.Final"
+    implementation "io.netty:netty-handler:4.1.86.Final"
+}

@@ -1,0 +1,12 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    implementation project(":iot-pulsar-agent")
+    implementation project(":iot-pulsar-common")
+    implementation project(":iot-pulsar-coap")
+    implementation project(":iot-pulsar-mqtt")
+    implementation project(":iot-pulsar-lwm2m")
+    implementation 'org.apache.pulsar:pulsar-broker:2.10.3'
+}
