@@ -1,0 +1,10 @@
+rootProject.name = 'iot-pulsar'
+include("iot-pulsar-handler",
+        'iot-pulsar-common',
+        "iot-pulsar-agent",
+        "iot-pulsar-mqtt",
+        "iot-pulsar-coap",
+        "iot-pulsar-lwm2m",
+        "iot-pulsar-http",
+        "iot-pulsar-test",
+)
