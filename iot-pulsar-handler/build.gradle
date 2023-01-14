@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id "io.github.lhotari.gradle-nar-plugin" version "0.5.1"
 }
 
 dependencies {
@@ -10,3 +11,12 @@ dependencies {
     implementation project(":iot-pulsar-lwm2m")
     implementation 'org.apache.pulsar:pulsar-broker:2.10.3'
 }
+
+tasks.register("copyNar", Copy) {
+    var narDir = project(':iot-pulsar-handler').buildDir.toString()
+    from(narDir + "/libs")
+    include("*.nar")
+    var targetDir = project(':iot-pulsar-test').buildDir.toString()
+    into(targetDir + "/resources/main")
+}
+tasks.named("build") { finalizedBy("copyNar") }

@@ -11,4 +11,4 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.iot.pulsar.mqtt.handlers;
+package io.iot.pulsar.mqtt.processor;

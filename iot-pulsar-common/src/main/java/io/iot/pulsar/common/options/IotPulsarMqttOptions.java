@@ -20,6 +20,10 @@ import lombok.ToString;
 @ToString
 @Builder
 public class IotPulsarMqttOptions {
+    /**
+     * Set the advertised listeners by the mqtt protocol, using "," to separate multiple ones.
+     * Only support mqtt://host:port and mqtt+ssl://host:port
+     */
     private final List<URI> advertisedListeners;
     private final boolean enableAuthentication;
 
@@ -48,7 +52,7 @@ public class IotPulsarMqttOptions {
                         final String scheme = advertisedListenerUri.getScheme();
                         if (scheme == null
                                 || (!scheme.equalsIgnoreCase("mqtt")
-                                        && !scheme.equalsIgnoreCase("mqtt+ssl"))) {
+                                && !scheme.equalsIgnoreCase("mqtt+ssl"))) {
                             throw new IllegalArgumentException("[IOT-MQTT] Illegal advertised listeners."
                                     + " example: mqtt://127.0.0.1:1884 or mqtt+ssl://127.0.0.1:8883");
                         }

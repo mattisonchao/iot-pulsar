@@ -3,8 +3,11 @@ package io.iot.pulsar.mqtt.messages.code;
 import static io.netty.handler.codec.mqtt.MqttConnectReturnCode.CONNECTION_ACCEPTED;
 import static io.netty.handler.codec.mqtt.MqttConnectReturnCode.CONNECTION_REFUSED_CLIENT_IDENTIFIER_NOT_VALID;
 import static io.netty.handler.codec.mqtt.MqttConnectReturnCode.CONNECTION_REFUSED_IDENTIFIER_REJECTED;
+import static io.netty.handler.codec.mqtt.MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED;
+import static io.netty.handler.codec.mqtt.MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED_5;
 import static io.netty.handler.codec.mqtt.MqttConnectReturnCode.CONNECTION_REFUSED_PROTOCOL_ERROR;
 import static io.netty.handler.codec.mqtt.MqttConnectReturnCode.CONNECTION_REFUSED_UNACCEPTABLE_PROTOCOL_VERSION;
+import static io.netty.handler.codec.mqtt.MqttConnectReturnCode.CONNECTION_REFUSED_UNSPECIFIED_ERROR;
 import static io.netty.handler.codec.mqtt.MqttConnectReturnCode.CONNECTION_REFUSED_UNSUPPORTED_PROTOCOL_VERSION;
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode;
 import io.netty.handler.codec.mqtt.MqttVersion;
@@ -16,7 +19,9 @@ public enum MqttConnReturnCode {
     PROTOCOL_ERROR(CONNECTION_REFUSED_UNACCEPTABLE_PROTOCOL_VERSION, CONNECTION_REFUSED_PROTOCOL_ERROR),
     INVALID_CLIENT_IDENTIFIER(CONNECTION_REFUSED_IDENTIFIER_REJECTED, CONNECTION_REFUSED_CLIENT_IDENTIFIER_NOT_VALID),
     UNSUPPORTED_PROTOCOL_VERSION(CONNECTION_REFUSED_UNACCEPTABLE_PROTOCOL_VERSION,
-            CONNECTION_REFUSED_UNSUPPORTED_PROTOCOL_VERSION);
+            CONNECTION_REFUSED_UNSUPPORTED_PROTOCOL_VERSION),
+    NOT_AUTHORIZED(CONNECTION_REFUSED_NOT_AUTHORIZED, CONNECTION_REFUSED_NOT_AUTHORIZED_5),
+    SERVER_INTERNAL_ERROR(CONNECTION_REFUSED_UNSPECIFIED_ERROR, CONNECTION_REFUSED_UNSPECIFIED_ERROR);
 
     MqttConnReturnCode(@Nonnull MqttConnectReturnCode v3, @Nonnull MqttConnectReturnCode v5) {
         this.v3 = v3;

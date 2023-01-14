@@ -1,14 +1,15 @@
-package io.iot.pulsar.mqtt.vertex;
+package io.iot.pulsar.mqtt.endpoint;
 
 import io.iot.pulsar.mqtt.auth.AuthData;
-import io.iot.pulsar.mqtt.messages.code.MqttConnReturnCode;
-import io.netty.handler.codec.mqtt.MqttProperties;
+import io.iot.pulsar.mqtt.messages.Identifier;
+import io.iot.pulsar.mqtt.processor.MqttProcessorController;
+import io.netty.handler.codec.mqtt.MqttMessage;
 import io.netty.handler.codec.mqtt.MqttVersion;
 import java.net.SocketAddress;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nonnull;
 
-public interface MqttVertex {
+public interface MqttEndpoint {
 
     @Nonnull
     default MqttVersion version() {
@@ -29,13 +30,17 @@ public interface MqttVertex {
         throw new UnsupportedOperationException("Unsupported operation");
     }
 
-    @Nonnull
-    default String identifier() {
+    default void processorController(@Nonnull MqttProcessorController controller) {
         throw new UnsupportedOperationException("Unsupported operation");
     }
 
     @Nonnull
-    default MqttVertexProperties properties() {
+    default Identifier identifier() {
+        throw new UnsupportedOperationException("Unsupported operation");
+    }
+
+    @Nonnull
+    default MqttEndpointProperties properties() {
         throw new UnsupportedOperationException("Unsupported operation");
     }
 
@@ -43,16 +48,11 @@ public interface MqttVertex {
     SocketAddress remoteAddress();
 
     @Nonnull
-    default CompletableFuture<Void> accept(@Nonnull MqttProperties properties) {
-        return CompletableFuture.failedFuture(new UnsupportedOperationException("Unsupported operation"));
-    }
-
-    @Nonnull
-    CompletableFuture<Void> reject(@Nonnull MqttConnReturnCode code, @Nonnull MqttProperties properties);
-
-    @Nonnull
     CompletableFuture<Void> close();
 
-    @Nonnull
-    <T> CompletableFuture<T> commandTraceLog(@Nonnull CompletableFuture<T> future, @Nonnull String command);
+    void swallow(@Nonnull MqttMessage mqttMessage);
+
+    default void setKeepAlive(int keepAliveTimeSeconds) {
+        throw new UnsupportedOperationException("Unsupported operation");
+    }
 }

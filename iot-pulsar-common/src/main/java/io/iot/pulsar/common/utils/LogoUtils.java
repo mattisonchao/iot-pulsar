@@ -8,14 +8,19 @@ public class LogoUtils {
         requireNonNull(version, "Argument [version] can not be null");
         requireNonNull(version, "Argument [protocols] can not be null");
 
-        String logo = "******       ******     ************                        ***\n"
-                    + "  **        **    **        ****                         **     **\n"
-                    + "  **        **    **        ****         ****************       *****************\n"
-                    + "  **        **    **        ****                       **         **\n"
-                    + "  **        **    **        ****             ********               *************\n"
-                    + "  **        **    **        ****         ****                 *****\n"
-                    + "  **        **    **        ****                   ***********       Version: " + version + "\n"
-                    + "******       ******         ****         *******                   Protocols: " + protocols;
+        System.out.println();
+        System.out.println();
+        String logo = String.format(" \n"
+                + "  ******       ******     ************                                ***\n"
+                + "    **        **    **        ****                                **     **\n"
+                + "    **        **    **        ****                 ****************       *****************\n"
+                + "    **        **    **        ****                               **         **\n"
+                + "    **        **    **        ****                     ********               *************\n"
+                + "    **        **    **        ****                 ****                 *****\n"
+                + "    **        **    **        ****                           ***********             Version: %s \n"
+                + "  ******       ******         ****                 *******                         Protocols: %s \n"
+                + "\n", version, protocols);
+
         System.out.println(logo);
     }
 }
