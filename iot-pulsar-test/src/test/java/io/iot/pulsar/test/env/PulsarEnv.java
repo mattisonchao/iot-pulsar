@@ -11,6 +11,8 @@ public interface PulsarEnv {
     @Nonnull
     String getServiceUrl();
 
+    int getMappedPort(int originalPort);
+
     @Nonnull
     ServiceConfiguration getDefaultConfiguration();
 

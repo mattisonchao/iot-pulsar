@@ -1,8 +1,11 @@
 package io.iot.pulsar.common.options;
 
+import com.google.common.base.Strings;
 import io.iot.pulsar.common.Protocols;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.stream.Collectors;
@@ -17,6 +20,11 @@ import lombok.ToString;
 @ToString
 @Builder
 public class IotPulsarOptions {
+    /**
+     * This configuration can set which protocols are enabled.
+     * <p>
+     * #{@link Protocols} to see which protocols we support.
+     */
     private final List<Protocols> protocols;
     private final IotPulsarMqttOptions mqttOptions;
     private final IotPulsarCoapOptions coapOptions;
@@ -37,9 +45,15 @@ public class IotPulsarOptions {
         final IotPulsarOptionsBuilder iotPulsarOptionsBuilder = IotPulsarOptions.builder();
 
         final String iotProtocols = properties.getProperty("iotProtocols");
-        final List<Protocols> protocols = Arrays.stream(iotProtocols.split(","))
-                .map(Protocols::valueOf)
-                .collect(Collectors.toList());
+        final List<Protocols> protocols;
+        if (!Strings.isNullOrEmpty(iotProtocols)) {
+            protocols = Arrays.stream(iotProtocols.split(","))
+                    .map(protocol -> protocol.toUpperCase(Locale.ROOT))
+                    .map(Protocols::valueOf)
+                    .collect(Collectors.toList());
+        } else {
+            protocols = Collections.emptyList();
+        }
         iotPulsarOptionsBuilder.protocols(protocols);
 
         if (protocols.contains(Protocols.MQTT)) {

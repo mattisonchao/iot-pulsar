@@ -4,20 +4,22 @@
 package io.iot.pulsar.test.env.container;
 
 import io.iot.pulsar.test.env.PulsarEnv;
+import java.util.Map;
 import javax.annotation.Nonnull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.broker.ServiceConfiguration;
+import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.PulsarContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @Slf4j
 public class DockerPulsarStandalone implements PulsarEnv {
 
-    private static final String VERSION = "2.10.2";
+    private static final String VERSION = "2.10.3";
     private static final DockerImageName PULSAR_IMAGE = DockerImageName.parse("apachepulsar/pulsar:" + VERSION);
     private PulsarContainer pulsar;
-    protected String brokerURL;
-    protected String webServiceURL;
+    private String brokerURL;
+    private String webServiceURL;
 
     @Nonnull
     @Override
@@ -31,6 +33,11 @@ public class DockerPulsarStandalone implements PulsarEnv {
         return webServiceURL;
     }
 
+    @Override
+    public int getMappedPort(int originalPort) {
+        return pulsar.getMappedPort(originalPort);
+    }
+
     @Nonnull
     @Override
     public ServiceConfiguration getDefaultConfiguration() {
@@ -41,6 +48,20 @@ public class DockerPulsarStandalone implements PulsarEnv {
     public void init(@Nonnull ServiceConfiguration serviceConfiguration) {
         // --------- Start pulsar standalone container
         this.pulsar = new PulsarContainer(PULSAR_IMAGE);
+        String protocolHandlerDirectory = serviceConfiguration.getProtocolHandlerDirectory();
+        pulsar.withFileSystemBind(protocolHandlerDirectory,
+                protocolHandlerDirectory, BindMode.READ_ONLY);
+        // Set broker configuration
+        pulsar.withEnv("PULSAR_PREFIX_" + "protocolHandlerDirectory", protocolHandlerDirectory);
+        pulsar.withEnv("PULSAR_PREFIX_" + "messagingProtocols", "iot");
+        // Set plugin configuration
+        for (Map.Entry<Object, Object> property : serviceConfiguration.getProperties().entrySet()) {
+            String key = (String) property.getKey();
+            String value = (String) property.getValue();
+            pulsar.withEnv("PULSAR_PREFIX_" + key, value);
+        }
+        // Expose 1883 for MQTT
+        pulsar.addExposedPort(1883);
         pulsar.start();
         log.info("====== Start Apache Pulsar success. ======");
         this.brokerURL = pulsar.getPulsarBrokerUrl();

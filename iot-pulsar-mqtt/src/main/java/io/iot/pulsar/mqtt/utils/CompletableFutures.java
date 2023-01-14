@@ -2,6 +2,8 @@ package io.iot.pulsar.mqtt.utils;
 
 import io.netty.channel.ChannelFuture;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import javax.annotation.Nonnull;
 
 public class CompletableFutures {
@@ -19,4 +21,16 @@ public class CompletableFutures {
         });
         return future;
     }
+
+    @Nonnull
+    public static Throwable unwrap(@Nonnull Throwable throwable) {
+        if (throwable instanceof CompletionException) {
+            return throwable.getCause();
+        } else if (throwable instanceof ExecutionException) {
+            return throwable.getCause();
+        } else {
+            return throwable;
+        }
+    }
+
 }

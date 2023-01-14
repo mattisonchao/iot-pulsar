@@ -25,9 +25,6 @@ public class MqttChannelInitializer extends ChannelInitializer<SocketChannel> {
 
     @Override
     protected void initChannel(@Nonnull SocketChannel socketChannel) {
-        if (ssl) {
-            // todo ...
-        }
         ChannelPipeline pipeline = socketChannel.pipeline();
         pipeline.addLast("mqttEncoder", MqttEncoder.INSTANCE);
         pipeline.addLast("mqttDecoder", new MqttDecoder());

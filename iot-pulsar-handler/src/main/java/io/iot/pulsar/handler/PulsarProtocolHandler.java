@@ -38,6 +38,9 @@ public class PulsarProtocolHandler implements ProtocolHandler {
 
     @Override
     public boolean accept(@Nonnull String protocol) {
+        if (protocol.equals("iot")) {
+            return true;
+        }
         return Arrays.stream(Protocols.values()).anyMatch(p -> p.name().equalsIgnoreCase(protocol));
     }
 
@@ -49,7 +52,18 @@ public class PulsarProtocolHandler implements ProtocolHandler {
     @Override
     @Nonnull
     public String getProtocolDataToAdvertise() {
-        return null;
+        final StringBuilder advertiseBuilder = new StringBuilder();
+        for (Protocols protocol : iotPulsarOptions.getProtocols()) {
+            switch (protocol) {
+                case MQTT:
+                    if (advertiseBuilder.length() != 0) {
+                        advertiseBuilder.append(",");
+                    }
+                    advertiseBuilder.append(iotPulsarOptions.getMqttOptions().getAdvertisedListeners());
+                    break;
+            }
+        }
+        return advertiseBuilder.toString();
     }
 
     @Override

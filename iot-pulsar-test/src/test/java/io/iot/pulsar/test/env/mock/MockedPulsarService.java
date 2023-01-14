@@ -62,6 +62,11 @@ public class MockedPulsarService implements PulsarEnv {
         return pulsar.getWebServiceAddress();
     }
 
+    @Override
+    public int getMappedPort(int originalPort) {
+        return originalPort;
+    }
+
     @Nonnull
     @Override
     public ServiceConfiguration getDefaultConfiguration() {
