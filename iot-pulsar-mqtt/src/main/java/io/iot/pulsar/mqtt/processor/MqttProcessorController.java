@@ -24,13 +24,7 @@ public class MqttProcessorController {
             return CompletableFuture.failedFuture(
                     new IllegalStateException(String.format("Processor [%s] not found.", messageType)));
         }
-        switch (messageType) {
-            case CONNECT:
-                return mqttProcessor.process(endpoint, mqttMessage);
-            default:
-                return CompletableFuture.failedFuture(
-                        new UnsupportedOperationException(String.format("Unsupported operation %s", messageType)));
-        }
+        return mqttProcessor.process(endpoint, mqttMessage);
     }
 
     public void register(@Nonnull MqttMessageType messageType, @Nonnull MqttProcessor processor) {
