@@ -3,7 +3,8 @@ package io.iot.pulsar.mqtt.endpoint;
 import io.iot.pulsar.mqtt.MqttChannelInitializer;
 import io.iot.pulsar.mqtt.auth.AuthData;
 import io.iot.pulsar.mqtt.messages.Identifier;
-import io.iot.pulsar.mqtt.messages.VoidMessage;
+import io.iot.pulsar.mqtt.messages.custom.VoidMessage;
+import io.iot.pulsar.mqtt.messages.will.WillMessage;
 import io.iot.pulsar.mqtt.processor.MqttProcessorController;
 import io.iot.pulsar.mqtt.utils.CompletableFutures;
 import io.netty.channel.ChannelDuplexHandler;
@@ -31,6 +32,8 @@ public class MqttEndpointImpl implements MqttEndpoint {
     private final AuthData authData;
     private final MqttEndpointProperties properties;
     private volatile String authRole;
+    private final boolean willFlag;
+    private final WillMessage willMessage;
 
     @Nonnull
     @Override
@@ -83,12 +86,20 @@ public class MqttEndpointImpl implements MqttEndpoint {
     public void swallow(@Nonnull MqttMessage mqttMessage) {
         processorController.process(mqttMessage.fixedHeader().messageType(), this, mqttMessage)
                 // todo: Improve the writing process. Not all messages need to flush immediately.
-                .thenCompose(ack -> {
+                .whenComplete((ack, processError) -> {
+                    if (processError != null) {
+                        Throwable rc = CompletableFutures.unwrap(processError);
+                        log.error("[IOT-MQTT][{}] Got exception while process message {}", remoteAddress(),
+                                mqttMessage, rc);
+                        // Unexpected exception, close the endpoint.
+                        close();
+                        return;
+                    }
                     // We don't need to do anything with void message.
                     if (ack instanceof VoidMessage) {
-                        return CompletableFuture.completedFuture(null);
+                        return;
                     }
-                    return CompletableFutures.from(ctx.channel().writeAndFlush(ack))
+                    CompletableFutures.from(ctx.channel().writeAndFlush(ack))
                             .whenComplete((__, ex) -> {
                                 if (ex != null) {
                                     log.error("[IOT-MQTT][{}] Failed to send packet [{}] to client.", remoteAddress(),
@@ -105,13 +116,17 @@ public class MqttEndpointImpl implements MqttEndpoint {
 
     @Override
     public void setKeepAlive(int keepAliveTimeSeconds) {
-        // config keep alive
+
         ctx.pipeline().remove(MqttChannelInitializer.CONNECT_IDLE_NAME);
         ctx.pipeline().remove(MqttChannelInitializer.CONNECT_TIMEOUT_NAME);
-
+        /*
+          If the Keep Alive value is non-zero and the Server does not receive a Control Packet from the
+          Client within one and a half times the Keep Alive time period,
+          it MUST disconnect the Network Connection to the Client as if the network had failed [MQTT-3.1.2-24].
+         */
         if (keepAliveTimeSeconds > 0) {
             ctx.pipeline().addLast("keepAliveIdle",
-                    new IdleStateHandler(keepAliveTimeSeconds, 0, 0));
+                    new IdleStateHandler(keepAliveTimeSeconds + (keepAliveTimeSeconds / 2), 0, 0));
             ctx.pipeline().addLast("keepAliveHandler", new ChannelDuplexHandler() {
                 @Override
                 public void userEventTriggered(ChannelHandlerContext ctx, Object event) {

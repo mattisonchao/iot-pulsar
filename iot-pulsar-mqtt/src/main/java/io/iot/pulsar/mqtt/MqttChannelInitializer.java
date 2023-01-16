@@ -10,16 +10,17 @@ import io.netty.handler.codec.mqtt.MqttEncoder;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
+import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 
 public class MqttChannelInitializer extends ChannelInitializer<SocketChannel> {
     public static final String CONNECT_IDLE_NAME = "connectIdle";
     public static final String CONNECT_TIMEOUT_NAME = "connectTimeout";
-    private final MqttInboundHandler inboundHandler;
+    private final Supplier<MqttInboundHandler> newInboundHandlerSupplier;
     private final boolean ssl;
 
-    public MqttChannelInitializer(@Nonnull MqttInboundHandler inboundHandler, boolean ssl) {
-        this.inboundHandler = inboundHandler;
+    public MqttChannelInitializer(@Nonnull Supplier<MqttInboundHandler> newInboundHandlerSupplier, boolean ssl) {
+        this.newInboundHandlerSupplier = newInboundHandlerSupplier;
         this.ssl = ssl;
     }
 
@@ -41,6 +42,6 @@ public class MqttChannelInitializer extends ChannelInitializer<SocketChannel> {
                 super.userEventTriggered(ctx, event);
             }
         });
-        pipeline.addLast("mqtt", inboundHandler);
+        pipeline.addLast("mqtt", newInboundHandlerSupplier.get());
     }
 }

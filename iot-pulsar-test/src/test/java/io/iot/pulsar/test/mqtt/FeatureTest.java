@@ -7,4 +7,10 @@ public interface FeatureTest {
     //todo add comment
     @Test
     void testSimpleConnect();
+
+    @Test
+    void testUnsupportedVersion();
+
+    @Test
+    void testCleanSession();
 }

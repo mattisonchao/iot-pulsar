@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.protocol.ProtocolHandler;
@@ -66,6 +67,7 @@ public class PulsarProtocolHandler implements ProtocolHandler {
         return advertiseBuilder.toString();
     }
 
+    @SneakyThrows
     @Override
     public void start(@Nonnull BrokerService service) {
         List<Protocols> protocols = iotPulsarOptions.getProtocols();
@@ -95,7 +97,7 @@ public class PulsarProtocolHandler implements ProtocolHandler {
             for (URI advertisedListener : options.getAdvertisedListeners()) {
                 initializerBuilder.put(
                         new InetSocketAddress(advertisedListener.getHost(), advertisedListener.getPort()),
-                        new MqttChannelInitializer(mqtt.createInboundHandler(),
+                        new MqttChannelInitializer(() -> mqtt.createInboundHandler(),
                                 advertisedListener.getScheme().equalsIgnoreCase("mqtt+ssl")));
             }
         }

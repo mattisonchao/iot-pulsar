@@ -1,8 +1,11 @@
 package io.iot.pulsar.agent;
 
+import io.iot.pulsar.agent.metadata.Metadata;
+import io.iot.pulsar.agent.metadata.SystemTopicMetadata;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
+import org.apache.pulsar.broker.PulsarServerException;
 import org.apache.pulsar.broker.service.BrokerService;
 
 /**
@@ -13,8 +16,10 @@ import org.apache.pulsar.broker.service.BrokerService;
  */
 @ThreadSafe
 public class PulsarClientAgentImpl implements PulsarAgent {
-    public PulsarClientAgentImpl(BrokerService service) {
+    private final Metadata<String, byte[]> metadata;
 
+    public PulsarClientAgentImpl(BrokerService service) throws PulsarServerException {
+        this.metadata = new SystemTopicMetadata(service.getPulsar().getClient());
     }
 
     @Override
@@ -26,5 +31,11 @@ public class PulsarClientAgentImpl implements PulsarAgent {
     @Override
     public CompletableFuture<String> doAuthentication(@Nonnull String method, @Nonnull String parameters) {
         return CompletableFuture.completedFuture("");
+    }
+
+    @Nonnull
+    @Override
+    public Metadata<String, byte[]> getMetadata() {
+        return this.metadata;
     }
 }
