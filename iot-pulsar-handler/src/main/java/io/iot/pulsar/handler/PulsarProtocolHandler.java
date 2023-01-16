@@ -97,7 +97,7 @@ public class PulsarProtocolHandler implements ProtocolHandler {
             for (URI advertisedListener : options.getAdvertisedListeners()) {
                 initializerBuilder.put(
                         new InetSocketAddress(advertisedListener.getHost(), advertisedListener.getPort()),
-                        new MqttChannelInitializer(mqtt.createInboundHandler(),
+                        new MqttChannelInitializer(() -> mqtt.createInboundHandler(),
                                 advertisedListener.getScheme().equalsIgnoreCase("mqtt+ssl")));
             }
         }
