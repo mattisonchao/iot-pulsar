@@ -1,16 +1,21 @@
 package io.iot.pulsar.test.mqtt.v3.hivemq;
 
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.fail;
 import com.hivemq.client.mqtt.mqtt3.Mqtt3BlockingClient;
 import com.hivemq.client.mqtt.mqtt3.Mqtt3Client;
 import com.hivemq.client.mqtt.mqtt3.message.connect.connack.Mqtt3ConnAck;
 import com.hivemq.client.mqtt.mqtt3.message.connect.connack.Mqtt3ConnAckReturnCode;
+import com.hivemq.client.mqtt.mqtt5.Mqtt5BlockingClient;
+import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
+import com.hivemq.client.mqtt.mqtt5.exceptions.Mqtt5ConnAckException;
+import com.hivemq.client.mqtt.mqtt5.message.connect.connack.Mqtt5ConnAckReasonCode;
 import io.iot.pulsar.test.env.IotPulsarBase;
 import io.iot.pulsar.test.mqtt.FeatureTest;
 import java.util.Properties;
 import java.util.UUID;
 import javax.annotation.Nonnull;
 import org.apache.pulsar.broker.ServiceConfiguration;
-import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public abstract class V3HivemqFeatureTest extends IotPulsarBase implements FeatureTest {
@@ -34,8 +39,33 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
         Mqtt3ConnAck connAck = client.connectWith()
                 .cleanSession(true)
                 .send();
-        Assert.assertEquals(connAck.getReturnCode(), Mqtt3ConnAckReturnCode.SUCCESS);
+        assertEquals(connAck.getReturnCode(), Mqtt3ConnAckReturnCode.SUCCESS);
         client.disconnect();
+    }
+
+    @Test
+    @Override
+    public void testUnsupportedVersion() {
+        Mqtt5BlockingClient client = Mqtt5Client.builder()
+                .identifier(UUID.randomUUID().toString())
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        try {
+            client.connect();
+            // cleanup resources
+            client.disconnect();
+            fail("Expect unsupported protocol version exception");
+        } catch (Mqtt5ConnAckException exception) {
+            assertEquals(exception.getMqttMessage().getReasonCode(),
+                    Mqtt5ConnAckReasonCode.UNSUPPORTED_PROTOCOL_VERSION);
+        }
+    }
+
+    @Test
+    @Override
+    public void testCleanSession() {
+
     }
 
     @Test

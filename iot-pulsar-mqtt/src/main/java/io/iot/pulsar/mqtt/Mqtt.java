@@ -3,6 +3,7 @@ package io.iot.pulsar.mqtt;
 import static java.util.Objects.requireNonNull;
 import io.iot.pulsar.agent.PulsarAgent;
 import io.iot.pulsar.common.options.IotPulsarMqttOptions;
+import io.iot.pulsar.mqtt.metadata.MqttMetadataDelegator;
 import io.iot.pulsar.mqtt.processor.ConnectProcessor;
 import io.iot.pulsar.mqtt.processor.MqttProcessorController;
 import io.netty.handler.codec.mqtt.MqttMessageType;
@@ -14,6 +15,8 @@ public class Mqtt {
     private final PulsarAgent pulsarAgent;
     @Getter
     private final IotPulsarMqttOptions options;
+    @Getter
+    private final MqttMetadataDelegator metadataDelegator;
 
     @Getter
     private final MqttProcessorController processorController = new MqttProcessorController();
@@ -21,6 +24,7 @@ public class Mqtt {
     private Mqtt(@Nonnull PulsarAgent pulsarAgent, @Nonnull IotPulsarMqttOptions options) {
         this.options = options;
         this.pulsarAgent = pulsarAgent;
+        this.metadataDelegator = new MqttMetadataDelegator(pulsarAgent);
     }
 
     {

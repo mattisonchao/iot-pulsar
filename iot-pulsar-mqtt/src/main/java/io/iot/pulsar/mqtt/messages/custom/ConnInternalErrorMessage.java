@@ -1,16 +1,16 @@
-package io.iot.pulsar.mqtt.messages;
+package io.iot.pulsar.mqtt.messages.custom;
 
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.mqtt.MqttFixedHeader;
 import io.netty.handler.codec.mqtt.MqttMessage;
 
-public class VoidMessage extends MqttMessage {
-    private VoidMessage() {
+public class ConnInternalErrorMessage extends MqttMessage {
+    private ConnInternalErrorMessage() {
         super(null);
     }
 
-    public static VoidMessage create() {
-        return new VoidMessage();
+    public static ConnInternalErrorMessage create() {
+        return new ConnInternalErrorMessage();
     }
 
     @Override

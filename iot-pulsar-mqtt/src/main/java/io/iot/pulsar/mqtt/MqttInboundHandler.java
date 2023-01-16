@@ -5,7 +5,10 @@ import io.iot.pulsar.mqtt.endpoint.MqttEndpoint;
 import io.iot.pulsar.mqtt.endpoint.MqttEndpointImpl;
 import io.iot.pulsar.mqtt.endpoint.MqttEndpointProperties;
 import io.iot.pulsar.mqtt.endpoint.RejectOnlyMqttEndpoint;
+import io.iot.pulsar.mqtt.exceptions.MqttIdentifierException;
 import io.iot.pulsar.mqtt.messages.Identifier;
+import io.iot.pulsar.mqtt.messages.custom.ConnInternalErrorMessage;
+import io.iot.pulsar.mqtt.utils.CompletableFutures;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderResult;
@@ -18,7 +21,9 @@ import io.netty.handler.codec.mqtt.MqttMessage;
 import io.netty.handler.codec.mqtt.MqttMessageType;
 import io.netty.handler.codec.mqtt.MqttVersion;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,34 +58,75 @@ public class MqttInboundHandler extends ChannelInboundHandlerAdapter {
             return;
         }
         MqttFixedHeader fixed = ((MqttMessage) msg).fixedHeader();
+        if (fixed.messageType() != MqttMessageType.CONNECT && this.mqttEndpoint == null) {
+            // After a Network Connection is established by a Client to a Server,
+            // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
+            MqttInboundHandler.this.mqttEndpoint = new RejectOnlyMqttEndpoint(ctx.channel());
+            mqttEndpoint.swallow((MqttMessage) msg);
+            return;
+        }
         if (fixed.messageType() == MqttMessageType.CONNECT) {
             MqttConnectMessage connectMessage = (MqttConnectMessage) msg;
             if (this.mqttEndpoint != null) {
+                // The Server MUST process a second CONNECT Packet sent from a Client
+                // as a protocol violation and disconnect the Client [MQTT-3.1.0-2].
                 mqttEndpoint.close();
                 return;
             }
             final MqttConnectVariableHeader var = connectMessage.variableHeader();
             final MqttConnectPayload payload = connectMessage.payload();
             final boolean assignedIdentifier = Strings.isNullOrEmpty(payload.clientIdentifier());
-            final String identifier;
-            if (assignedIdentifier) {
-                identifier = UUID.randomUUID().toString();
-            } else {
-                identifier = payload.clientIdentifier();
-            }
-            // preparing endpoint
-            final MqttEndpointProperties properties = MqttEndpointProperties
-                    .builder()
-                    .cleanSession(var.isCleanSession())
-                    .build();
-            MqttInboundHandler.this.mqttEndpoint = MqttEndpointImpl.builder()
-                    .identifier(Identifier.create(identifier, assignedIdentifier))
-                    .ctx(ctx)
-                    .version(MqttVersion.fromProtocolNameAndLevel(var.name(), (byte) var.version()))
-                    .properties(properties)
-                    .processorController(mqtt.getProcessorController())
-                    .build();
+            CompletableFuture<String> future = checkOrAssignIdentifier(payload.clientIdentifier());
+            future.whenComplete((identifier, error) -> {
+                if (error != null) {
+                    Throwable rc = CompletableFutures.unwrap(error);
+                    if (rc instanceof MqttIdentifierException.MqttIdentifierConflict) {
+                        // In this case, we will put the null value to identifier,
+                        // and then the processor will process it.
+                    } else {
+                        log.error("[IOT-MQTT][{}] Got exception while check client identifier."
+                                , ctx.channel().remoteAddress(), rc);
+                        MqttInboundHandler.this.mqttEndpoint = new RejectOnlyMqttEndpoint(ctx.channel());
+                        mqttEndpoint.swallow(ConnInternalErrorMessage.create());
+                        return;
+                    }
+                }
+                // preparing endpoint
+                final MqttEndpointProperties properties = MqttEndpointProperties
+                        .builder()
+                        .cleanSession(var.isCleanSession())
+                        .build();
+                MqttInboundHandler.this.mqttEndpoint = MqttEndpointImpl.builder()
+                        .identifier(Identifier.create(identifier, assignedIdentifier))
+                        .ctx(ctx)
+                        .version(MqttVersion.fromProtocolNameAndLevel(var.name(), (byte) var.version()))
+                        .properties(properties)
+                        .processorController(mqtt.getProcessorController())
+                        .build();
+            });
         }
         mqttEndpoint.swallow((MqttMessage) msg);
+    }
+
+    @Nonnull
+    private CompletableFuture<String> checkOrAssignIdentifier(@Nullable String originalIdentifier) {
+        final String identifier;
+        if (originalIdentifier == null) {
+            identifier = UUID.randomUUID().toString();
+        } else {
+            identifier = originalIdentifier;
+        }
+        return mqtt.getMetadataDelegator().clientIdentifierExist(identifier)
+                .thenCompose(isExist -> {
+                    if (!isExist) {
+                        return CompletableFuture.completedFuture(identifier);
+                    }
+                    if (originalIdentifier == null) {
+                        // recursive assign
+                        return checkOrAssignIdentifier(UUID.randomUUID().toString());
+                    }
+                    // Original Identifier is already exist
+                    throw new MqttIdentifierException.MqttIdentifierConflict(identifier);
+                });
     }
 }
