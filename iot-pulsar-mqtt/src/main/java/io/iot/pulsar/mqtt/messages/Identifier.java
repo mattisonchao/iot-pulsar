@@ -20,19 +20,7 @@ public class Identifier {
     }
 
     @Nonnull
-    public static Identifier create(@Nullable String identifier, boolean assigned) {
-        if (identifier == null) {
-            return empty();
-        }
+    public static Identifier create(@Nonnull String identifier, boolean assigned) {
         return new Identifier(identifier, assigned);
-    }
-
-    @Nonnull
-    public static Identifier empty() {
-        return new Identifier(null, false);
-    }
-
-    public boolean isEmpty() {
-        return identifier == null;
     }
 }

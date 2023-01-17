@@ -83,6 +83,11 @@ public class MqttEndpointImpl implements MqttEndpoint {
     }
 
     @Override
+    public long initTime() {
+        return initTime;
+    }
+
+    @Override
     public void swallow(@Nonnull MqttMessage mqttMessage) {
         processorController.process(mqttMessage.fixedHeader().messageType(), this, mqttMessage)
                 // todo: Improve the writing process. Not all messages need to flush immediately.
@@ -138,4 +143,7 @@ public class MqttEndpointImpl implements MqttEndpoint {
             });
         }
     }
+
+    @Builder.Default
+    private final long initTime = System.currentTimeMillis();
 }

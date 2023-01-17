@@ -13,4 +13,7 @@ public interface FeatureTest {
 
     @Test
     void testCleanSession();
+
+    @Test
+    void testUniqueClientIdentifier();
 }

@@ -1,6 +1,8 @@
 package io.iot.pulsar.test.mqtt.v3.hivemq;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 import com.hivemq.client.mqtt.mqtt3.Mqtt3BlockingClient;
 import com.hivemq.client.mqtt.mqtt3.Mqtt3Client;
@@ -16,6 +18,7 @@ import java.util.Properties;
 import java.util.UUID;
 import javax.annotation.Nonnull;
 import org.apache.pulsar.broker.ServiceConfiguration;
+import org.awaitility.Awaitility;
 import org.testng.annotations.Test;
 
 public abstract class V3HivemqFeatureTest extends IotPulsarBase implements FeatureTest {
@@ -60,6 +63,37 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
             assertEquals(exception.getMqttMessage().getReasonCode(),
                     Mqtt5ConnAckReasonCode.UNSUPPORTED_PROTOCOL_VERSION);
         }
+    }
+
+    @Test
+    @Override
+    public void testUniqueClientIdentifier() {
+        String identifier = UUID.randomUUID().toString();
+        Mqtt3BlockingClient client1 = Mqtt3Client.builder()
+                .identifier(identifier)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        Mqtt3BlockingClient client2 = Mqtt3Client.builder()
+                .identifier(identifier)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        client1.connect();
+        assertTrue(client1.getState().isConnected());
+        client2.connect();
+        Awaitility.await().untilAsserted(() -> assertFalse(client1.getState().isConnected()));
+        assertTrue(client2.getState().isConnected());
+        Mqtt3BlockingClient client3 = Mqtt3Client.builder()
+                .identifier(identifier)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        client3.connect();
+        Awaitility.await().untilAsserted(() -> assertFalse(client1.getState().isConnected()));
+        Awaitility.await().untilAsserted(() -> assertFalse(client2.getState().isConnected()));
+        assertTrue(client3.getState().isConnected());
+        client3.disconnect();
     }
 
     @Test
