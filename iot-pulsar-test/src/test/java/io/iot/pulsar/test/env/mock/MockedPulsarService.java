@@ -273,9 +273,17 @@ public class MockedPulsarService implements PulsarEnv {
             admin.tenants().createTenant(tenant, TenantInfo.builder().allowedClusters(
                     Sets.newHashSet(CONFIG_CLUSTER_NAME)).build());
         }
+        // create system tenant/namespace
+        if (!admin.tenants().getTenants().contains("pulsar")) {
+            admin.tenants().createTenant("pulsar", TenantInfo.builder().allowedClusters(
+                    Sets.newHashSet(CONFIG_CLUSTER_NAME)).build());
+        }
 
         if (!admin.namespaces().getNamespaces(tenant).contains(namespace)) {
             admin.namespaces().createNamespace(namespace);
+        }
+        if (!admin.namespaces().getNamespaces("pulsar").contains("pulsar/system")) {
+            admin.namespaces().createNamespace("pulsar/system");
         }
     }
 }

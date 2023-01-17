@@ -24,7 +24,7 @@ public class PulsarClientAgentImpl implements PulsarAgent {
 
     @Override
     public void close() {
-
+        metadata.close();
     }
 
     @Nonnull

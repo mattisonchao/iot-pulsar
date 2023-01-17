@@ -11,6 +11,10 @@ import javax.annotation.Nonnull;
 
 public interface MqttEndpoint {
 
+    default long initTime() {
+        throw new UnsupportedOperationException("Unsupported operation");
+    }
+
     @Nonnull
     default MqttVersion version() {
         throw new UnsupportedOperationException("Unsupported operation");

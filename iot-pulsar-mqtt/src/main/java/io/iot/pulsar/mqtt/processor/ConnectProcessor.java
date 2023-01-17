@@ -70,11 +70,10 @@ public class ConnectProcessor implements MqttProcessor {
                             false, MqttProperties.NO_PROPERTIES), null);
             return CompletableFuture.completedFuture(rejectAck);
         }
-        if (endpoint.identifier().isEmpty()
-                // See https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html
-                // In cases where the ClientID is assigned by the Server, return the assigned ClientID.
-                // This also lifts the restriction that Server assigned ClientIDs can only be used with Clean Session=1.
-                || (!endpoint.properties().isCleanSession() && endpoint.identifier().isAssigned())) {
+        // See https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html
+        // In cases where the ClientID is assigned by the Server, return the assigned ClientID.
+        // This also lifts the restriction that Server assigned ClientIDs can only be used with Clean Session=1.
+        if (!endpoint.properties().isCleanSession() && endpoint.identifier().isAssigned()) {
             final MqttMessage rejectAck = MqttMessageFactory.newMessage(MqttFixedHeaders.CONN_ACK,
                     new MqttConnAckVariableHeader(
                             MqttConnReturnCode.INVALID_CLIENT_IDENTIFIER.getNettyCode(endpoint.version()),
@@ -91,9 +90,12 @@ public class ConnectProcessor implements MqttProcessor {
         } else {
             authFuture = CompletableFuture.completedFuture(null);
         }
-        return authFuture.thenApply(__ -> MqttMessageFactory.newMessage(MqttFixedHeaders.CONN_ACK,
+        CompletableFuture<MqttMessage> sendFuture =
+                authFuture.thenApply(__ -> MqttMessageFactory.newMessage(MqttFixedHeaders.CONN_ACK,
                         new MqttConnAckVariableHeader(MqttConnReturnCode.ACCEPT.getNettyCode(endpoint.version()), false,
-                                MqttProperties.NO_PROPERTIES), null))
+                                MqttProperties.NO_PROPERTIES), null));
+        sendFuture.thenAccept(__ -> mqtt.getMetadataDelegator().registerAndListenKickOut(endpoint));
+        return sendFuture
                 .exceptionally(ex -> {
                     Throwable realCause = CompletableFutures.unwrap(ex);
                     log.error("[IOT-MQTT][{}] Got an error when processor process connect messages.",

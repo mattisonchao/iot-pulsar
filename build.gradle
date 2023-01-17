@@ -26,4 +26,7 @@ subprojects {
     checkstyle {
         toolVersion = "8.37"
     }
+
+    checkstyleMain
+            .exclude('io/iot/pulsar/mqtt/api/proto/*.java')
 }
