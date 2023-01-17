@@ -25,11 +25,12 @@ import org.apache.pulsar.common.util.FutureUtil;
 public class SystemTopicMetadata implements Metadata<String, byte[]> {
     private static final String GLOBAL_META_SPACE = "persistent://pulsar/system/__iot_pulsar_system_event";
     private final PulsarClient client;
-    private CompletableFuture<TableView<byte[]>> globalView;
-    private CompletableFuture<Producer<byte[]>> globalProducer;
-    private volatile CompletableFuture<Void> lastSentFuture = CompletableFuture.completedFuture(null);
     private final Map<String, List<Consumer<byte[]>>> listeners = new ConcurrentHashMap<>();
     private final Executor out = ThreadPools.createDefaultSingleScheduledExecutor("iot-pulsar-agent-meta-out");
+
+    private volatile CompletableFuture<TableView<byte[]>> globalView;
+    private volatile CompletableFuture<Producer<byte[]>> globalProducer;
+    private volatile CompletableFuture<Void> lastSentFuture = CompletableFuture.completedFuture(null);
 
     public SystemTopicMetadata(@Nonnull PulsarClient client) {
         this.client = client;
@@ -51,7 +52,7 @@ public class SystemTopicMetadata implements Metadata<String, byte[]> {
                         view.forEachAndListen((innerKey, value) -> {
                             try {
                                 out.execute(() -> {
-                                    List<Consumer<byte[]>> consumers = listeners.get(innerKey);
+                                    final List<Consumer<byte[]>> consumers = listeners.get(innerKey);
                                     if (consumers == null) {
                                         return;
                                     }
@@ -111,7 +112,7 @@ public class SystemTopicMetadata implements Metadata<String, byte[]> {
 
         listeners.compute(key, (k, v) -> {
             if (v == null) {
-                List<Consumer<byte[]>> listeners = new ArrayList<>();
+                final List<Consumer<byte[]>> listeners = new ArrayList<>();
                 listeners.add(listener);
                 return listeners;
             }
@@ -139,7 +140,7 @@ public class SystemTopicMetadata implements Metadata<String, byte[]> {
         if (globalProducer != null) {
             futures.add(globalProducer.thenCompose(Producer::closeAsync));
         }
-        CompletableFuture<Void> future = FutureUtil.waitForAll(futures);
+        final CompletableFuture<Void> future = FutureUtil.waitForAll(futures);
         future.exceptionally(ex -> {
             log.error("[IOT-AGENT] got an exception while closing the system topic metadata.",
                     Throwables.getRootCause(ex));

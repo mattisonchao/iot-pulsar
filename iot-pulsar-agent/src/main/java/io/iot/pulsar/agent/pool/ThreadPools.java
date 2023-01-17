@@ -19,7 +19,7 @@ public class ThreadPools {
 
     public static ScheduledExecutorService createDefaultSingleScheduledExecutor(@Nonnull String poolName) {
         final MutableBoolean updated = new MutableBoolean();
-        Executor executor = executors.computeIfAbsent(poolName,
+        final Executor executor = executors.computeIfAbsent(poolName,
                 key -> {
                     updated.setTrue();
                     return Executors.newSingleThreadScheduledExecutor(newNettyFastDefaultThreadFactory(poolName));
