@@ -7,6 +7,7 @@ import java.net.URL;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import lombok.SneakyThrows;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.api.PulsarClient;
@@ -31,8 +32,13 @@ public abstract class IotPulsarBase {
         final ServiceConfiguration defaultConfiguration = env.getDefaultConfiguration();
         defaultConfiguration.setMessagingProtocols(Set.of("iot"));
         URL resource = IotPulsarBase.this.getClass().getClassLoader().getResource("iot-pulsar-handler.nar");
-        defaultConfiguration.setProtocolHandlerDirectory(resource.getPath().toString()
-                .replace("iot-pulsar-handler.nar", ""));
+        assert resource != null;
+        String replacePath = resource.getPath().replace("iot-pulsar-handler.nar", "");
+        if (StringUtils.containsIgnoreCase(System.getProperty("os.name"), "windows")) {
+            replacePath = replacePath.substring(1);
+        }
+        defaultConfiguration.setProtocolHandlerDirectory(replacePath);
+
         prepare(defaultConfiguration);
         env.init(defaultConfiguration);
         String brokerUrl = env.getBrokerUrl();
