@@ -26,6 +26,7 @@ public class IotPulsarMqttOptions {
      */
     private final List<URI> advertisedListeners;
     private final boolean enableAuthentication;
+    private final boolean enableAuthorization;
 
     /**
      * Parse properties to IoT Pulsar mqtt options, this method does not check the logic of the configuration.
@@ -66,9 +67,12 @@ public class IotPulsarMqttOptions {
 
         boolean authenticationEnabled = Boolean.parseBoolean(
                 Optional.ofNullable(properties.getProperty("mqttEnableAuthentication")).orElse("false"));
+        boolean authorizationEnabled = Boolean.parseBoolean(
+                Optional.ofNullable(properties.getProperty("mqttEnableAuthorization")).orElse("false"));
 
         return mqttOptionsBuilder
                 .enableAuthentication(authenticationEnabled)
+                .enableAuthorization(authorizationEnabled)
                 .build();
     }
 }
