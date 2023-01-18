@@ -26,7 +26,7 @@ public class PulsarClientAgent implements PulsarAgent {
 
     public PulsarClientAgent(BrokerService service) throws PulsarServerException {
         this.metadata = new SystemTopicMetadata(service.getPulsar().getClient());
-        // todo Maybe we need pulsar to enable authentication even when mqtt is not enabled, though.
+        // todo Maybe we need pulsar to enable authentication even when iot is not enabled, though.
         // But that would introduce more complexity and I think maybe we can wait for users.
         this.authenticationService = service.getAuthenticationService();
         this.authorizationService = service.getAuthorizationService();
