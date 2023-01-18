@@ -45,10 +45,14 @@ public abstract class IotPulsarBase {
         String serviceUrl = env.getServiceUrl();
         IotPulsarBase.this.brokerHost = URI.create(brokerUrl).getHost();
         IotPulsarBase.this.pulsarAdmin = PulsarAdmin.builder()
+                .authentication(defaultConfiguration.getBrokerClientAuthenticationPlugin(),
+                        defaultConfiguration.getBrokerClientAuthenticationParameters())
                 .serviceHttpUrl(serviceUrl)
                 .build();
         IotPulsarBase.this.pulsarClient = PulsarClient.builder()
                 .serviceUrl(brokerUrl)
+                .authentication(defaultConfiguration.getBrokerClientAuthenticationPlugin(),
+                        defaultConfiguration.getBrokerClientAuthenticationParameters())
                 .build();
     }
 
