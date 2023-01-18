@@ -2,7 +2,7 @@ package io.iot.pulsar.handler;
 
 import com.google.common.collect.ImmutableMap;
 import io.iot.pulsar.agent.PulsarAgent;
-import io.iot.pulsar.agent.PulsarClientAgentImpl;
+import io.iot.pulsar.agent.PulsarClientAgent;
 import io.iot.pulsar.common.Protocols;
 import io.iot.pulsar.common.options.IotPulsarMqttOptions;
 import io.iot.pulsar.common.options.IotPulsarOptions;
@@ -48,6 +48,19 @@ public class PulsarProtocolHandler implements ProtocolHandler {
     @Override
     public void initialize(@Nonnull ServiceConfiguration conf) {
         PulsarProtocolHandler.this.iotPulsarOptions = IotPulsarOptions.parseFromProperties(conf.getProperties());
+        // check authentication flag
+        boolean pulsarAuthenticationEnabled = conf.isAuthenticationEnabled();
+        for (Protocols protocol : iotPulsarOptions.getProtocols()) {
+            if (Objects.requireNonNull(protocol) == Protocols.MQTT) {
+                final IotPulsarMqttOptions mqttOptions = iotPulsarOptions.getMqttOptions();
+                boolean mqttAuthenticationEnabled = mqttOptions.isEnableAuthentication();
+                if (!pulsarAuthenticationEnabled && mqttAuthenticationEnabled) {
+                    throw new UnsupportedOperationException("IoT Pulsar mqtt does not support "
+                            + "enabling authentication if pulsar [authenticationEnabled] is not configured.");
+                }
+            }
+        }
+
     }
 
     @Override
@@ -72,7 +85,7 @@ public class PulsarProtocolHandler implements ProtocolHandler {
     public void start(@Nonnull BrokerService service) {
         List<Protocols> protocols = iotPulsarOptions.getProtocols();
         if (!protocols.isEmpty()) {
-            PulsarProtocolHandler.this.pulsarAgent = new PulsarClientAgentImpl(service);
+            PulsarProtocolHandler.this.pulsarAgent = new PulsarClientAgent(service);
             for (Protocols protocol : protocols) {
                 if (Objects.requireNonNull(protocol) == Protocols.MQTT) {
                     PulsarProtocolHandler.this.mqtt =

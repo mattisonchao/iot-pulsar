@@ -1,5 +1,6 @@
 package io.iot.pulsar.mqtt.processor;
 
+import static io.iot.pulsar.mqtt.messages.MqttMessageTemplate.connReject;
 import io.iot.pulsar.agent.PulsarAgent;
 import io.iot.pulsar.common.options.IotPulsarMqttOptions;
 import io.iot.pulsar.mqtt.Mqtt;
@@ -64,29 +65,31 @@ public class ConnectProcessor implements MqttProcessor {
             //The Server MUST respond to the CONNECT Packet with a CONNACK return code 0x01
             // (unacceptable protocol level) and then disconnect the Client if the Protocol
             // Level is not supported by the Server [MQTT-3.1.2-2].
-            final MqttMessage rejectAck = MqttMessageFactory.newMessage(MqttFixedHeaders.CONN_ACK,
-                    new MqttConnAckVariableHeader(
-                            MqttConnReturnCode.UNSUPPORTED_PROTOCOL_VERSION.getNettyCode(endpoint.version()),
-                            false, MqttProperties.NO_PROPERTIES), null);
-            return CompletableFuture.completedFuture(rejectAck);
+            return CompletableFuture.completedFuture(connReject(MqttConnReturnCode.UNSUPPORTED_PROTOCOL_VERSION
+                    .getNettyCode(endpoint.version()), MqttProperties.NO_PROPERTIES));
         }
         // See https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html
         // In cases where the ClientID is assigned by the Server, return the assigned ClientID.
         // This also lifts the restriction that Server assigned ClientIDs can only be used with Clean Session=1.
         if (!endpoint.properties().isCleanSession() && endpoint.identifier().isAssigned()) {
-            final MqttMessage rejectAck = MqttMessageFactory.newMessage(MqttFixedHeaders.CONN_ACK,
-                    new MqttConnAckVariableHeader(
-                            MqttConnReturnCode.INVALID_CLIENT_IDENTIFIER.getNettyCode(endpoint.version()),
-                            false, MqttProperties.NO_PROPERTIES), null);
-            return CompletableFuture.completedFuture(rejectAck);
+            return CompletableFuture.completedFuture(connReject(MqttConnReturnCode.INVALID_CLIENT_IDENTIFIER
+                    .getNettyCode(endpoint.version()), MqttProperties.NO_PROPERTIES));
         }
         endpoint.setKeepAlive(connectMessage.variableHeader().keepAliveTimeSeconds());
 
         final CompletableFuture<Void> authFuture;
         if (options.isEnableAuthentication()) {
-            AuthData authData = endpoint.authData();
-            authFuture = agent.doAuthentication(authData.getMethod(), authData.getParameters())
-                    .thenAccept(endpoint::authRole);
+            final AuthData authData = endpoint.authData();
+            if (authData.isEmpty()) {
+                log.info("[IOT-MQTT][{}][{}] got auth data is an empty exception while doing authentication.",
+                        endpoint.identifier(), endpoint.remoteAddress());
+                return CompletableFuture.completedFuture(connReject(MqttConnReturnCode.NOT_AUTHORIZED
+                        .getNettyCode(endpoint.version()), MqttProperties.NO_PROPERTIES));
+            }
+            final String parameters = authData.isBasic()
+                    ? authData.mergeUserNameAndPassword(':')
+                    : authData.getStringParameters();
+            authFuture = agent.doAuthentication(authData.getMethod(), parameters).thenAccept(endpoint::authRole);
         } else {
             authFuture = CompletableFuture.completedFuture(null);
         }
@@ -97,13 +100,11 @@ public class ConnectProcessor implements MqttProcessor {
         sendFuture.thenAccept(__ -> mqtt.getMetadataDelegator().registerAndListenKickOut(endpoint));
         return sendFuture
                 .exceptionally(ex -> {
-                    Throwable realCause = CompletableFutures.unwrap(ex);
-                    log.error("[IOT-MQTT][{}] Got an error when processor process connect messages.",
-                            endpoint.remoteAddress(), realCause);
-                    return MqttMessageFactory.newMessage(MqttFixedHeaders.CONN_ACK,
-                            new MqttConnAckVariableHeader(
-                                    MqttConnReturnCode.SERVER_INTERNAL_ERROR.getNettyCode(endpoint.version()),
-                                    false, MqttProperties.NO_PROPERTIES), null);
+                    Throwable rc = CompletableFutures.unwrap(ex);
+                    log.error("[IOT-MQTT][{}][{}] Got an error when processor process connect messages.",
+                            endpoint.identifier(), endpoint.remoteAddress(), rc);
+                    return connReject(MqttConnReturnCode.SERVER_INTERNAL_ERROR
+                            .getNettyCode(endpoint.version()), MqttProperties.NO_PROPERTIES);
                 });
     }
 }

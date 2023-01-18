@@ -1,6 +1,7 @@
 package io.iot.pulsar.mqtt;
 
 import com.google.common.base.Strings;
+import io.iot.pulsar.mqtt.auth.AuthData;
 import io.iot.pulsar.mqtt.endpoint.MqttEndpoint;
 import io.iot.pulsar.mqtt.endpoint.MqttEndpointImpl;
 import io.iot.pulsar.mqtt.endpoint.MqttEndpointProperties;
@@ -75,6 +76,12 @@ public class MqttInboundHandler extends ChannelInboundHandlerAdapter {
             } else {
                 identifier = payload.clientIdentifier();
             }
+            final AuthData authData;
+            if (var.hasUserName()) {
+                authData = AuthData.createByUserName(payload.userName(), payload.passwordInBytes());
+            } else {
+                authData = AuthData.empty();
+            }
             // preparing endpoint
             final MqttEndpointProperties properties = MqttEndpointProperties
                     .builder()
@@ -83,6 +90,7 @@ public class MqttInboundHandler extends ChannelInboundHandlerAdapter {
             MqttInboundHandler.this.mqttEndpoint = MqttEndpointImpl.builder()
                     .identifier(Identifier.create(identifier, assignedIdentifier))
                     .ctx(ctx)
+                    .authData(authData)
                     .version(MqttVersion.fromProtocolNameAndLevel(var.name(), (byte) var.version()))
                     .properties(properties)
                     .processorController(mqtt.getProcessorController())
