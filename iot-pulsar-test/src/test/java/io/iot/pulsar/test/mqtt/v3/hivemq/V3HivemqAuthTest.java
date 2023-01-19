@@ -54,14 +54,42 @@ public class V3HivemqAuthTest extends IotPulsarBase implements AuthTest {
     @Test
     @Override
     public void testTokenAuthentication() {
-        // todo
+        Mqtt3BlockingClient client1 = Mqtt3Client.builder()
+                .identifier(UUID.randomUUID().toString())
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        try {
+            client1.connectWith()
+                    .cleanSession(true)
+                    .send();
+            fail("expect NOT_AUTHORIZED exception!");
+        } catch (Mqtt3ConnAckException ex) {
+            assertEquals(ex.getMqttMessage().getReturnCode(), Mqtt3ConnAckReturnCode.NOT_AUTHORIZED);
+        }
+        //-----
+        Mqtt3BlockingClient client2 = Mqtt3Client.builder()
+                .identifier(UUID.randomUUID().toString())
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        Mqtt3ConnAck ack = client2.connectWith()
+                .simpleAuth()
+                .username(":token")
+                .password("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdXBlcnVzZXIifQ.EN0bokGp8EMz00EdKg2c3f1wD-27o2EQh99NaCIxy7k".getBytes(StandardCharsets.UTF_8))
+                .applySimpleAuth()
+                .cleanSession(true)
+                .send();
+        assertEquals(ack.getReturnCode(), Mqtt3ConnAckReturnCode.SUCCESS);
+        client2.disconnect();
     }
 
     @Override
     protected void prepare(@Nonnull ServiceConfiguration serviceConfiguration) {
         serviceConfiguration.setAuthenticationEnabled(true);
         serviceConfiguration.setAuthenticationProviders(
-                Set.of("org.apache.pulsar.broker.authentication.AuthenticationProviderBasic"));
+                Set.of("org.apache.pulsar.broker.authentication.AuthenticationProviderBasic",
+                        "org.apache.pulsar.broker.authentication.AuthenticationProviderToken"));
         serviceConfiguration.setBrokerClientAuthenticationPlugin(
                 "org.apache.pulsar.client.impl.auth.AuthenticationBasic");
         serviceConfiguration.setBrokerClientAuthenticationParameters(
@@ -72,10 +100,12 @@ public class V3HivemqAuthTest extends IotPulsarBase implements AuthTest {
         // duplicate for container
         properties.put("authenticationEnabled", "true");
         properties.put("authenticationProviders",
-                "org.apache.pulsar.broker.authentication.AuthenticationProviderBasic");
+                "org.apache.pulsar.broker.authentication.AuthenticationProviderBasic," +
+                        "org.apache.pulsar.broker.authentication.AuthenticationProviderToken");
         properties.put("brokerClientAuthenticationPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationBasic");
         properties.put("brokerClientAuthenticationParameters", "{\"userId\":\"superuser\",\"password\":\"admin\"}");
-
+        // config token
+        properties.put("tokenSecretKey", "data:;base64,Rp16YOnd2TdTPYGByHI98DrFBkIe5u8DBBjAa9zcb9k=");
         // enable mqtt
         properties.put("iotProtocols", "mqtt");
         properties.put("mqttAdvertisedListeners", "mqtt://0.0.0.0:1883");
