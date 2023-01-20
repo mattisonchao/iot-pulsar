@@ -36,7 +36,6 @@ public enum MqttPubReturnCode {
         return v3;
     }
 
-    @Nonnull
     public byte getByte(@Nonnull MqttVersion version) {
         if (version.protocolLevel() >= MqttVersion.MQTT_5.protocolLevel()) {
             return v5.byteValue();

@@ -79,7 +79,7 @@ public class PulsarProducerManager {
         @Getter
         private volatile long lastActiveTime = System.currentTimeMillis();
 
-        private ProducerContext(PulsarClient client, TopicName topicName) {
+        private ProducerContext(@Nonnull PulsarClient client,@Nonnull TopicName topicName) {
             this.topicName = topicName;
             this.pulsarClient = client;
         }
