@@ -27,4 +27,4 @@ jobs:
           version: '3.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run build with Gradle Wrapper
-        run: ./gradlew build
+        run: ./gradlew clean && ./gradlew build
