@@ -4,7 +4,7 @@ import io.iot.pulsar.mqtt.messages.Identifier;
 import io.iot.pulsar.mqtt.messages.MqttFixedHeaders;
 import io.iot.pulsar.mqtt.messages.code.MqttConnReturnCode;
 import io.iot.pulsar.mqtt.messages.custom.ConnInternalErrorMessage;
-import io.iot.pulsar.mqtt.utils.CompletableFutures;
+import io.iot.pulsar.mqtt.utils.EnhanceCompletableFutures;
 import io.netty.channel.Channel;
 import io.netty.handler.codec.mqtt.MqttConnAckVariableHeader;
 import io.netty.handler.codec.mqtt.MqttFixedHeader;
@@ -42,7 +42,7 @@ public class RejectOnlyMqttEndpoint implements MqttEndpoint {
     @Nonnull
     @Override
     public CompletableFuture<Void> close() {
-        return CompletableFutures.from(channel.close());
+        return EnhanceCompletableFutures.from(channel.close());
     }
 
     @Override
@@ -76,7 +76,7 @@ public class RejectOnlyMqttEndpoint implements MqttEndpoint {
                 }
             }
         }
-        CompletableFutures.from(channel.writeAndFlush(ack))
+        EnhanceCompletableFutures.from(channel.writeAndFlush(ack))
                 .exceptionally(ex -> {
                     // Catch exception
                     log.error("[IOT-MQTT][{}] Failed to send packet connect ack to client.",

@@ -5,6 +5,7 @@ import io.iot.pulsar.test.env.mock.MockedPulsarService;
 import java.net.URI;
 import java.net.URL;
 import java.util.Set;
+import java.util.UUID;
 import javax.annotation.Nonnull;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
@@ -13,6 +14,7 @@ import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.DataProvider;
 
 public abstract class IotPulsarBase {
     private PulsarEnv env;
@@ -78,5 +80,16 @@ public abstract class IotPulsarBase {
         if (pulsarAdmin != null) {
             pulsarAdmin.close();
         }
+    }
+
+    // --- data providers
+    @DataProvider(name = "topicNames")
+    public Object[][] topicNames() {
+        return new Object[][]{
+                {"persistent://public/default/" + UUID.randomUUID()},
+                {UUID.randomUUID() + ""},
+                {"/a/b/c"},
+                {"a/b/c"},
+        };
     }
 }

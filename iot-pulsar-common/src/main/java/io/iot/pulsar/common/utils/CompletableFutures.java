@@ -1,25 +1,20 @@
-package io.iot.pulsar.mqtt.utils;
+package io.iot.pulsar.common.utils;
 
-import io.netty.channel.ChannelFuture;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 
 public class CompletableFutures {
 
     @Nonnull
-    public static CompletableFuture<Void> from(@Nonnull ChannelFuture channelFuture) {
-        // todo check NPE
-        CompletableFuture<Void> future = new CompletableFuture<>();
-        channelFuture.addListener(event -> {
-            if (!event.isSuccess()) {
-                future.completeExceptionally(event.cause());
-                return;
-            }
-            future.complete(null);
-        });
-        return future;
+    public static <T> CompletableFuture<T> composeAsync(Supplier<CompletionStage<T>> supplier,
+                                                        Executor executor) {
+        return CompletableFuture.completedFuture(null)
+                .thenComposeAsync(__ -> supplier.get(), executor);
     }
 
     @Nonnull
@@ -32,5 +27,4 @@ public class CompletableFutures {
             return throwable;
         }
     }
-
 }

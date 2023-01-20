@@ -8,6 +8,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
+import org.apache.bookkeeper.common.util.OrderedExecutor;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 
 /**
@@ -28,6 +29,23 @@ public class ThreadPools {
             throw new IllegalArgumentException(String.format("The executor pool name %s is used", poolName));
         }
         return (ScheduledExecutorService) executor;
+    }
+
+    public static OrderedExecutor createOrderedExecutor(@Nonnull String poolName, int numThreads) {
+        final MutableBoolean updated = new MutableBoolean();
+        final Executor executor = executors.computeIfAbsent(poolName,
+                key -> {
+                    updated.setTrue();
+                    return OrderedExecutor.newBuilder()
+                            .numThreads(numThreads)
+                            .name(poolName)
+                            .threadFactory(newNettyFastDefaultThreadFactory(poolName))
+                            .build();
+                });
+        if (updated.isFalse()) {
+            throw new IllegalArgumentException(String.format("The executor pool name %s is used", poolName));
+        }
+        return (OrderedExecutor) executor;
     }
 
     public static ThreadFactory newNettyFastDefaultThreadFactory(@Nonnull String poolName) {
