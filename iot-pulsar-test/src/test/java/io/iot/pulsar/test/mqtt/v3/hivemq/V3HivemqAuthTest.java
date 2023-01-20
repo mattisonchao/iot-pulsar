@@ -76,7 +76,8 @@ public class V3HivemqAuthTest extends IotPulsarBase implements AuthTest {
         Mqtt3ConnAck ack = client2.connectWith()
                 .simpleAuth()
                 .username(":token")
-                .password("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdXBlcnVzZXIifQ.EN0bokGp8EMz00EdKg2c3f1wD-27o2EQh99NaCIxy7k".getBytes(StandardCharsets.UTF_8))
+                .password(("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdXBlcnVzZXIifQ"
+                        + ".EN0bokGp8EMz00EdKg2c3f1wD-27o2EQh99NaCIxy7k").getBytes(StandardCharsets.UTF_8))
                 .applySimpleAuth()
                 .cleanSession(true)
                 .send();
@@ -100,8 +101,8 @@ public class V3HivemqAuthTest extends IotPulsarBase implements AuthTest {
         // duplicate for container
         properties.put("authenticationEnabled", "true");
         properties.put("authenticationProviders",
-                "org.apache.pulsar.broker.authentication.AuthenticationProviderBasic," +
-                        "org.apache.pulsar.broker.authentication.AuthenticationProviderToken");
+                "org.apache.pulsar.broker.authentication.AuthenticationProviderBasic,"
+                        + "org.apache.pulsar.broker.authentication.AuthenticationProviderToken");
         properties.put("brokerClientAuthenticationPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationBasic");
         properties.put("brokerClientAuthenticationParameters", "{\"userId\":\"superuser\",\"password\":\"admin\"}");
         // config token
