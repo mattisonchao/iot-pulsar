@@ -18,7 +18,7 @@ import org.apache.commons.lang3.mutable.MutableBoolean;
 public class ThreadPools {
     private static final ConcurrentHashMap<String, Executor> executors = new ConcurrentHashMap<>();
 
-    public static ScheduledExecutorService createDefaultSingleScheduledExecutor(@Nonnull String poolName) {
+    public static @Nonnull ScheduledExecutorService createDefaultSingleScheduledExecutor(@Nonnull String poolName) {
         final MutableBoolean updated = new MutableBoolean();
         final Executor executor = executors.computeIfAbsent(poolName,
                 key -> {
@@ -31,7 +31,7 @@ public class ThreadPools {
         return (ScheduledExecutorService) executor;
     }
 
-    public static OrderedExecutor createOrderedExecutor(@Nonnull String poolName, int numThreads) {
+    public static @Nonnull OrderedExecutor createOrderedExecutor(@Nonnull String poolName, int numThreads) {
         final MutableBoolean updated = new MutableBoolean();
         final Executor executor = executors.computeIfAbsent(poolName,
                 key -> {
@@ -48,7 +48,7 @@ public class ThreadPools {
         return (OrderedExecutor) executor;
     }
 
-    public static ThreadFactory newNettyFastDefaultThreadFactory(@Nonnull String poolName) {
+    public static @Nonnull ThreadFactory newNettyFastDefaultThreadFactory(@Nonnull String poolName) {
         // todo add thread blocking time check.
         return new DefaultThreadFactory(poolName);
     }

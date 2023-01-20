@@ -11,8 +11,8 @@ import javax.annotation.Nonnull;
 public class CompletableFutures {
 
     @Nonnull
-    public static <T> CompletableFuture<T> composeAsync(Supplier<CompletionStage<T>> supplier,
-                                                        Executor executor) {
+    public static <T> CompletableFuture<T> composeAsync(@Nonnull Supplier<CompletionStage<T>> supplier,
+                                                        @Nonnull Executor executor) {
         return CompletableFuture.completedFuture(null)
                 .thenComposeAsync(__ -> supplier.get(), executor);
     }

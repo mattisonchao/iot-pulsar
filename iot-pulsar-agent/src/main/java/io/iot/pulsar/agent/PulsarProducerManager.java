@@ -135,7 +135,7 @@ public class PulsarProducerManager {
             }
         }
 
-        public CompletableFuture<Void> close() {
+        public @Nonnull CompletableFuture<Void> close() {
             return producerFuture.thenCompose(Producer::closeAsync)
                     .exceptionally(ex -> {
                         log.warn("[IOT-AGENT][{}] Got an exception while close the producer.", topicName);
