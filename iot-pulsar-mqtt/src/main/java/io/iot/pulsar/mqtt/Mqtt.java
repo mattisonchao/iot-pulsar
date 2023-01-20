@@ -6,6 +6,7 @@ import io.iot.pulsar.common.options.IotPulsarMqttOptions;
 import io.iot.pulsar.mqtt.metadata.MqttMetadataDelegator;
 import io.iot.pulsar.mqtt.processor.ConnectProcessor;
 import io.iot.pulsar.mqtt.processor.MqttProcessorController;
+import io.iot.pulsar.mqtt.processor.PublishProcessor;
 import io.netty.handler.codec.mqtt.MqttMessageType;
 import javax.annotation.Nonnull;
 import lombok.Getter;
@@ -30,6 +31,7 @@ public class Mqtt {
     {
         // Automatic register
         processorController.register(MqttMessageType.CONNECT, new ConnectProcessor(this));
+        processorController.register(MqttMessageType.PUBLISH, new PublishProcessor(this));
     }
 
     @Nonnull

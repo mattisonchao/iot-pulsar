@@ -8,7 +8,7 @@ import io.iot.pulsar.mqtt.auth.AuthData;
 import io.iot.pulsar.mqtt.endpoint.MqttEndpoint;
 import io.iot.pulsar.mqtt.messages.MqttFixedHeaders;
 import io.iot.pulsar.mqtt.messages.code.MqttConnReturnCode;
-import io.iot.pulsar.mqtt.utils.CompletableFutures;
+import io.iot.pulsar.mqtt.utils.EnhanceCompletableFutures;
 import io.netty.handler.codec.mqtt.MqttConnAckVariableHeader;
 import io.netty.handler.codec.mqtt.MqttConnectMessage;
 import io.netty.handler.codec.mqtt.MqttMessage;
@@ -100,7 +100,7 @@ public class ConnectProcessor implements MqttProcessor {
         sendFuture.thenAccept(__ -> mqtt.getMetadataDelegator().registerAndListenKickOut(endpoint));
         return sendFuture
                 .exceptionally(ex -> {
-                    Throwable rc = CompletableFutures.unwrap(ex);
+                    final Throwable rc = EnhanceCompletableFutures.unwrap(ex);
                     log.error("[IOT-MQTT][{}][{}] Got an error when processor process connect messages.",
                             endpoint.identifier(), endpoint.remoteAddress(), rc);
                     return connReject(MqttConnReturnCode.SERVER_INTERNAL_ERROR

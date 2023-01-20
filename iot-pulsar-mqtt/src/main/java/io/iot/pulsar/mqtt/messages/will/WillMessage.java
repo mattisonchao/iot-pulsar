@@ -1,6 +1,5 @@
 package io.iot.pulsar.mqtt.messages.will;
 
-import io.iot.pulsar.mqtt.messages.MqttTopic;
 import io.netty.handler.codec.mqtt.MqttMessage;
 import io.netty.handler.codec.mqtt.MqttQoS;
 import lombok.Builder;
@@ -21,6 +20,6 @@ public class WillMessage {
      */
     private final boolean isRetain;
 
-    private final MqttTopic willTopic;
+    private final String willTopic;
     private final MqttMessage message;
 }

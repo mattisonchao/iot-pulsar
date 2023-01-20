@@ -6,7 +6,7 @@ import io.iot.pulsar.mqtt.messages.Identifier;
 import io.iot.pulsar.mqtt.messages.custom.VoidMessage;
 import io.iot.pulsar.mqtt.messages.will.WillMessage;
 import io.iot.pulsar.mqtt.processor.MqttProcessorController;
-import io.iot.pulsar.mqtt.utils.CompletableFutures;
+import io.iot.pulsar.mqtt.utils.EnhanceCompletableFutures;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.mqtt.MqttMessage;
@@ -79,7 +79,7 @@ public class MqttEndpointImpl implements MqttEndpoint {
     @Nonnull
     @Override
     public CompletableFuture<Void> close() {
-        return CompletableFutures.from(ctx.channel().close());
+        return EnhanceCompletableFutures.from(ctx.channel().close());
     }
 
     @Override
@@ -93,7 +93,7 @@ public class MqttEndpointImpl implements MqttEndpoint {
                 // todo: Improve the writing process. Not all messages need to flush immediately.
                 .whenComplete((ack, processError) -> {
                     if (processError != null) {
-                        Throwable rc = CompletableFutures.unwrap(processError);
+                        final Throwable rc = EnhanceCompletableFutures.unwrap(processError);
                         log.error("[IOT-MQTT][{}] Got exception while process message {}", remoteAddress(),
                                 mqttMessage, rc);
                         // Unexpected exception, close the endpoint.
@@ -104,7 +104,7 @@ public class MqttEndpointImpl implements MqttEndpoint {
                     if (ack instanceof VoidMessage) {
                         return;
                     }
-                    CompletableFutures.from(ctx.channel().writeAndFlush(ack))
+                    EnhanceCompletableFutures.from(ctx.channel().writeAndFlush(ack))
                             .whenComplete((__, ex) -> {
                                 if (ex != null) {
                                     log.error("[IOT-MQTT][{}] Failed to send packet [{}] to client.", remoteAddress(),

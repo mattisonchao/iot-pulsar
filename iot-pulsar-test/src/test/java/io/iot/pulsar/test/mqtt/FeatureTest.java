@@ -4,6 +4,7 @@ import org.testng.annotations.Test;
 
 public interface FeatureTest {
 
+
     //todo add comment
     @Test
     void testSimpleConnect();
@@ -16,4 +17,7 @@ public interface FeatureTest {
 
     @Test
     void testUniqueClientIdentifier();
+
+    @Test
+    void testQos1(String topicName);
 }
