@@ -10,14 +10,12 @@ import lombok.extern.slf4j.Slf4j;
 
 @ThreadSafe
 @Slf4j
-public class DisConnectProcessor implements MqttProcessor {
+public class DisconnectProcessor implements MqttProcessor {
     @Nonnull
     @Override
     public CompletableFuture<MqttMessage> process(@Nonnull MqttEndpoint endpoint, @Nonnull MqttMessage message) {
-        endpoint.close();
-
         //MUST discard any Will Message associated with the current connection without publishing it,
         // as described in Section 3.1.2.5 [MQTT-3.14.4-3].
-        return CompletableFuture.supplyAsync(VoidMessage::create);
+        return endpoint.close().thenApply(__-> VoidMessage.create());
     }
 }
