@@ -225,12 +225,9 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
         // unsubscribe consumer
         client2.unsubscribeWith().topicFilter(topicName).send();
         client2.disconnect();
-        // waiting for consumer GC
-        Awaitility.await().atMost(20, TimeUnit.SECONDS)
-                .untilAsserted(() -> {
-                    TopicStats stats = pulsarAdmin.topics().getStats(tp.toString());
-                    assertEquals(stats.getSubscriptions().size(), 0);
-                });
+        // check subscription
+        TopicStats stats = pulsarAdmin.topics().getStats(tp.toString());
+        assertEquals(stats.getSubscriptions().size(), 0);
         pulsarAdmin.topics().delete(tp.toString());
         // using mqtt client produce and mqtt client consume
     }
