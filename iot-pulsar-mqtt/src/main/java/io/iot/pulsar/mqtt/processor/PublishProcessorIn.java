@@ -18,11 +18,11 @@ import lombok.extern.slf4j.Slf4j;
 
 @ThreadSafe
 @Slf4j
-public class PublishProcessor implements MqttProcessor {
+public class PublishProcessorIn implements MqttProcessor {
 
     private final Mqtt mqtt;
 
-    public PublishProcessor(@Nonnull Mqtt mqtt) {
+    public PublishProcessorIn(@Nonnull Mqtt mqtt) {
         this.mqtt = mqtt;
     }
 

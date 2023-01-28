@@ -87,7 +87,7 @@ public class PulsarProducerManager {
         public static @Nonnull ProducerContext create(@Nonnull PulsarClient client, @Nonnull TopicName topicName) {
             final CompletableFuture<Producer<ByteBuffer>> future = client.newProducer(Schema.BYTEBUFFER)
                     .topic(topicName.toString())
-                    .producerName("iot-pulsar-mqtt-producer")
+                    .producerName("iot-pulsar-producer")
                     .createAsync();
             final ProducerContext producerContext = new ProducerContext(client, topicName);
             producerContext.producerFuture = future;
@@ -96,11 +96,15 @@ public class PulsarProducerManager {
 
         public @Nonnull CompletableFuture<MessageId> publish(@Nonnull ByteBuffer payload) {
             autoRecovery();
-            ProducerContext.this.lastActiveTime = System.currentTimeMillis();
+            resetTick();
             final CompletableFuture<MessageId> future = lastSentFuture.thenCompose(__ -> producerFuture)
                     .thenCompose(producer -> producer.sendAsync(payload));
             ProducerContext.this.lastSentFuture = future;
             return future;
+        }
+
+        private void resetTick() {
+            ProducerContext.this.lastActiveTime = System.currentTimeMillis();
         }
 
         private void autoRecovery() {
@@ -111,7 +115,7 @@ public class PulsarProducerManager {
                 });
                 ProducerContext.this.producerFuture = pulsarClient.newProducer(Schema.BYTEBUFFER)
                         .topic(topicName.toString())
-                        .producerName("iot-pulsar-mqtt-producer")
+                        .producerName("iot-pulsar-producer")
                         .createAsync()
                         .thenApply(producer -> {
                             log.info("[IOT-AGENT][{}] Refreshed internal producer", topicName);
@@ -125,7 +129,7 @@ public class PulsarProducerManager {
                     });
                     ProducerContext.this.producerFuture = pulsarClient.newProducer(Schema.BYTEBUFFER)
                             .topic(topicName.toString())
-                            .producerName("iot-pulsar-mqtt-producer")
+                            .producerName("iot-pulsar-producer")
                             .createAsync()
                             .thenApply(producer -> {
                                 log.info("[IOT-AGENT][{}] Refreshed internal producer", topicName);

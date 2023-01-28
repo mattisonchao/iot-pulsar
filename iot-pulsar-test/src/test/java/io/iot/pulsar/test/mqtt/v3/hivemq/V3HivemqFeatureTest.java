@@ -2,14 +2,18 @@ package io.iot.pulsar.test.mqtt.v3.hivemq;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
+import static org.testng.AssertJUnit.assertNull;
+import com.hivemq.client.mqtt.MqttGlobalPublishFilter;
 import com.hivemq.client.mqtt.datatypes.MqttQos;
 import com.hivemq.client.mqtt.mqtt3.Mqtt3BlockingClient;
 import com.hivemq.client.mqtt.mqtt3.Mqtt3Client;
 import com.hivemq.client.mqtt.mqtt3.message.connect.connack.Mqtt3ConnAck;
 import com.hivemq.client.mqtt.mqtt3.message.connect.connack.Mqtt3ConnAckReturnCode;
+import com.hivemq.client.mqtt.mqtt3.message.publish.Mqtt3Publish;
+import com.hivemq.client.mqtt.mqtt3.message.subscribe.suback.Mqtt3SubAck;
+import com.hivemq.client.mqtt.mqtt3.message.subscribe.suback.Mqtt3SubAckReturnCode;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5BlockingClient;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
 import com.hivemq.client.mqtt.mqtt5.exceptions.Mqtt5ConnAckException;
@@ -17,6 +21,8 @@ import com.hivemq.client.mqtt.mqtt5.message.connect.connack.Mqtt5ConnAckReasonCo
 import io.iot.pulsar.test.env.IotPulsarBase;
 import io.iot.pulsar.test.mqtt.FeatureTest;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +31,7 @@ import lombok.SneakyThrows;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Message;
+import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.ManagedLedgerInternalStats;
@@ -32,6 +39,7 @@ import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.Codec;
 import org.awaitility.Awaitility;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public abstract class V3HivemqFeatureTest extends IotPulsarBase implements FeatureTest {
@@ -121,13 +129,14 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
         } else {
             tp = TopicName.get(Codec.encode(topicName));
         }
+        String identifier = UUID.randomUUID().toString();
+        // ^^ preparing
         // using mqtt client produce and pulsar client consume
         Consumer<byte[]> consumer1 = pulsarClient.newConsumer()
                 .topic(tp.toString())
                 .subscriptionName("qos-1")
                 .subscribe();
 
-        String identifier = UUID.randomUUID().toString();
         Mqtt3BlockingClient client1 = Mqtt3Client.builder()
                 .identifier(identifier)
                 .serverHost(brokerHost)
@@ -169,7 +178,60 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
                     assertEquals(stats.getPublishers().size(), 0);
                 });
         pulsarAdmin.topics().delete(tp.toString());
+
+        // ======= section ===============================================
         // using pulsar client produce and mqtt client consume
+        String identifier2 = UUID.randomUUID().toString();
+        Producer<byte[]> producer2 = pulsarClient.newProducer()
+                .topic(tp.toString())
+                .create();
+        Mqtt3BlockingClient client2 = Mqtt3Client.builder()
+                .identifier(identifier2)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        client2.connect();
+        Mqtt3SubAck subAck = client2.subscribeWith()
+                .topicFilter(topicName)
+                .qos(MqttQos.AT_LEAST_ONCE)
+                .send();
+        Assert.assertEquals(subAck.getReturnCodes(), List.of(Mqtt3SubAckReturnCode.SUCCESS_MAXIMUM_QOS_1));
+        Mqtt3BlockingClient.Mqtt3Publishes publishes =
+                client2.publishes(MqttGlobalPublishFilter.SUBSCRIBED, true);
+        for (int i = 0; i < messageNum; i++) {
+            // pulsar client default is at-least-once
+            producer2.send((i + "").getBytes(StandardCharsets.UTF_8));
+        }
+        for (int i = 0; i < messageNum; i++) {
+            Optional<Mqtt3Publish> publishOptional = publishes.receive(2, TimeUnit.SECONDS);
+            // We need to make sure we don't lose anything.
+            if (publishOptional.isEmpty()) {
+                fail("Unexpected message number");
+            }
+            // verify the message order
+            Mqtt3Publish publishPacket = publishOptional.get();
+            assertEquals(new String(publishPacket.getPayloadAsBytes()), i + "");
+            publishPacket.acknowledge();
+        }
+        // no more message
+        assertTrue(publishes.receive(2, TimeUnit.SECONDS).isEmpty());
+        // verify acknowledgement
+        internalStats = pulsarAdmin.topics().getInternalStats(tp.toString());
+        lastConfirmedEntry = internalStats.lastConfirmedEntry;
+        cursorStats = internalStats.cursors.get(identifier2);
+        assertEquals(cursorStats.markDeletePosition, lastConfirmedEntry);
+        // cleanup the resource
+        producer2.close();
+        // unsubscribe consumer
+        client2.unsubscribeWith().topicFilter(topicName).send();
+        client2.disconnect();
+        // waiting for consumer GC
+        Awaitility.await().atMost(20, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    TopicStats stats = pulsarAdmin.topics().getStats(tp.toString());
+                    assertEquals(stats.getSubscriptions().size(), 0);
+                });
+        pulsarAdmin.topics().delete(tp.toString());
         // using mqtt client produce and mqtt client consume
     }
 

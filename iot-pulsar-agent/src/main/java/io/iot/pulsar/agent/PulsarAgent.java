@@ -1,6 +1,7 @@
 package io.iot.pulsar.agent;
 
 import io.iot.pulsar.agent.metadata.Metadata;
+import io.iot.pulsar.agent.options.SubscribeOptions;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nonnull;
@@ -23,5 +24,13 @@ public interface PulsarAgent {
     @Nonnull
     Metadata<String, byte[]> getMetadata();
 
+    @Nonnull
+    CompletableFuture<Void> subscribe(@Nonnull String topicName, @Nonnull SubscribeOptions options);
 
+    @Nonnull
+    CompletableFuture<Void> unSubscribe(@Nonnull String topicName, @Nonnull String subscriptionName);
+
+    @Nonnull
+    CompletableFuture<Void> acknowledgement(@Nonnull String topicName, @Nonnull String subscriptionName,
+                                            @Nonnull byte[] messageId);
 }

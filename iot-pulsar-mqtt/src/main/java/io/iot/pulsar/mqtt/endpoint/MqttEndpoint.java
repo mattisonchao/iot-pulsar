@@ -2,10 +2,12 @@ package io.iot.pulsar.mqtt.endpoint;
 
 import io.iot.pulsar.mqtt.auth.AuthData;
 import io.iot.pulsar.mqtt.messages.Identifier;
+import io.iot.pulsar.mqtt.messages.custom.RawPublishMessage;
 import io.iot.pulsar.mqtt.processor.MqttProcessorController;
 import io.netty.handler.codec.mqtt.MqttMessage;
 import io.netty.handler.codec.mqtt.MqttVersion;
 import java.net.SocketAddress;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nonnull;
 
@@ -54,7 +56,20 @@ public interface MqttEndpoint {
     @Nonnull
     CompletableFuture<Void> close();
 
-    void swallow(@Nonnull MqttMessage mqttMessage);
+    default int getPacketId(@Nonnull RawPublishMessage.Metadata agentMessageMetadata) {
+        throw new UnsupportedOperationException("Unsupported operation");
+    }
+
+    @Nonnull
+    default Optional<RawPublishMessage.Metadata> getAgentMessageMetadata(int packetId) {
+        throw new UnsupportedOperationException("Unsupported operation");
+    }
+
+    default void releasePacketId(int packetId) {
+        throw new UnsupportedOperationException("Unsupported operation");
+    }
+
+    void processMessage(@Nonnull MqttProcessorController.Direction direction, @Nonnull MqttMessage mqttMessage);
 
     default void setKeepAlive(int keepAliveTimeSeconds) {
         throw new UnsupportedOperationException("Unsupported operation");

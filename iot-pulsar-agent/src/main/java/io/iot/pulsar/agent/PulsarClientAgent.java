@@ -2,7 +2,10 @@ package io.iot.pulsar.agent;
 
 import io.iot.pulsar.agent.metadata.Metadata;
 import io.iot.pulsar.agent.metadata.SystemTopicMetadata;
+import io.iot.pulsar.agent.options.SubscribeOptions;
 import io.iot.pulsar.agent.pool.ThreadPools;
+import io.iot.pulsar.agent.utils.TopicNameUtils;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nonnull;
@@ -14,10 +17,10 @@ import org.apache.pulsar.broker.authentication.AuthenticationDataCommand;
 import org.apache.pulsar.broker.authentication.AuthenticationService;
 import org.apache.pulsar.broker.authorization.AuthorizationService;
 import org.apache.pulsar.broker.service.BrokerService;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.PulsarClient;
-import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
-import org.apache.pulsar.common.util.Codec;
+
 
 /**
  * The pulsar client version of the pulsar agent.
@@ -32,6 +35,7 @@ public class PulsarClientAgent implements PulsarAgent {
     private final AuthorizationService authorizationService;
     private final OrderedExecutor orderedExecutor;
     private final PulsarProducerManager producerManager;
+    private final PulsarConsumerManager consumerManager;
 
     public PulsarClientAgent(@Nonnull BrokerService service) throws PulsarServerException {
         final PulsarClient client = service.getPulsar().getClient();
@@ -44,6 +48,7 @@ public class PulsarClientAgent implements PulsarAgent {
                 ThreadPools.createOrderedExecutor("iot-agent-ordered",
                         Runtime.getRuntime().availableProcessors());
         this.producerManager = new PulsarProducerManager(client, orderedExecutor);
+        this.consumerManager = new PulsarConsumerManager(client, orderedExecutor);
     }
 
     @Override
@@ -66,13 +71,13 @@ public class PulsarClientAgent implements PulsarAgent {
     @Nonnull
     @Override
     public CompletableFuture<String> publish(@Nonnull String topicName, @Nonnull ByteBuffer payload) {
-        final TopicName tp;
-        if (topicName.startsWith(TopicDomain.persistent.value())) {
-            tp = TopicName.get(topicName);
-        } else {
-            tp = TopicName.get(Codec.encode(topicName));
+        final TopicName pulsarTopicName;
+        try {
+            pulsarTopicName = TopicNameUtils.convertToPulsarName(topicName);
+        } catch (IllegalArgumentException ex) {
+            return CompletableFuture.failedFuture(ex);
         }
-        return producerManager.publish(tp, payload)
+        return producerManager.publish(pulsarTopicName, payload)
                 .thenApply(Object::toString);
     }
 
@@ -81,4 +86,48 @@ public class PulsarClientAgent implements PulsarAgent {
     public Metadata<String, byte[]> getMetadata() {
         return this.metadata;
     }
+
+    @Nonnull
+    @Override
+    public CompletableFuture<Void> subscribe(@Nonnull String topicName, @Nonnull SubscribeOptions options) {
+        final TopicName pulsarTopicName;
+        try {
+            pulsarTopicName = TopicNameUtils.convertToPulsarName(topicName);
+        } catch (IllegalArgumentException ex) {
+            return CompletableFuture.failedFuture(ex);
+        }
+        return consumerManager.subscribe(pulsarTopicName, options);
+    }
+
+    @Nonnull
+    @Override
+    public CompletableFuture<Void> unSubscribe(@Nonnull String topicName, @Nonnull String subscriptionName) {
+        final TopicName pulsarTopicName;
+        try {
+            pulsarTopicName = TopicNameUtils.convertToPulsarName(topicName);
+        } catch (IllegalArgumentException ex) {
+            return CompletableFuture.failedFuture(ex);
+        }
+        return consumerManager.unSubscribe(pulsarTopicName, subscriptionName);
+    }
+
+    @Nonnull
+    @Override
+    public CompletableFuture<Void> acknowledgement(@Nonnull String topicName, @Nonnull String subscriptionName,
+                                                   @Nonnull byte[] messageId) {
+        final TopicName pulsarTopicName;
+        try {
+            pulsarTopicName = TopicNameUtils.convertToPulsarName(topicName);
+        } catch (IllegalArgumentException ex) {
+            return CompletableFuture.failedFuture(ex);
+        }
+        final MessageId pulsarMessageId;
+        try {
+            pulsarMessageId = MessageId.fromByteArray(messageId);
+        } catch (IOException ex) {
+            return CompletableFuture.failedFuture(ex);
+        }
+        return consumerManager.acknowledgement(pulsarTopicName, subscriptionName, pulsarMessageId);
+    }
+
 }

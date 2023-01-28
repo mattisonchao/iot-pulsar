@@ -7,7 +7,12 @@ import io.iot.pulsar.mqtt.metadata.MqttMetadataDelegator;
 import io.iot.pulsar.mqtt.processor.ConnectProcessor;
 import io.iot.pulsar.mqtt.processor.DisconnectProcessor;
 import io.iot.pulsar.mqtt.processor.MqttProcessorController;
-import io.iot.pulsar.mqtt.processor.PublishProcessor;
+import io.iot.pulsar.mqtt.processor.PingProcessor;
+import io.iot.pulsar.mqtt.processor.PublishAckProcessor;
+import io.iot.pulsar.mqtt.processor.PublishProcessorIn;
+import io.iot.pulsar.mqtt.processor.PublishProcessorOut;
+import io.iot.pulsar.mqtt.processor.SubscribeProcessor;
+import io.iot.pulsar.mqtt.processor.UnsubscribeProcessor;
 import io.netty.handler.codec.mqtt.MqttMessageType;
 import javax.annotation.Nonnull;
 import lombok.Getter;
@@ -31,9 +36,23 @@ public class Mqtt {
 
     {
         // Automatic register
-        processorController.register(MqttMessageType.CONNECT, new ConnectProcessor(this));
-        processorController.register(MqttMessageType.PUBLISH, new PublishProcessor(this));
-        processorController.register(MqttMessageType.DISCONNECT, new DisconnectProcessor());
+        processorController.register(MqttProcessorController.Direction.IN, MqttMessageType.PINGREQ,
+                new PingProcessor());
+        processorController.register(MqttProcessorController.Direction.IN, MqttMessageType.CONNECT,
+                new ConnectProcessor(this));
+        processorController.register(MqttProcessorController.Direction.IN, MqttMessageType.PUBLISH,
+                new PublishProcessorIn(this));
+        processorController.register(MqttProcessorController.Direction.IN, MqttMessageType.SUBSCRIBE,
+                new SubscribeProcessor(this));
+        processorController.register(MqttProcessorController.Direction.IN, MqttMessageType.UNSUBSCRIBE,
+                new UnsubscribeProcessor(this));
+        processorController.register(MqttProcessorController.Direction.IN, MqttMessageType.PUBACK,
+                new PublishAckProcessor(this));
+        processorController.register(MqttProcessorController.Direction.IN, MqttMessageType.DISCONNECT,
+                new DisconnectProcessor());
+
+        processorController.register(MqttProcessorController.Direction.OUT, MqttMessageType.PUBLISH,
+                new PublishProcessorOut(this));
     }
 
     @Nonnull
