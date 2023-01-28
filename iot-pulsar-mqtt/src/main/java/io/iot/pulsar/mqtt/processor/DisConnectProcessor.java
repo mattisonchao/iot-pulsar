@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @ThreadSafe
 @Slf4j
-public class DisConnectProcessor  implements MqttProcessor {
+public class DisConnectProcessor implements MqttProcessor {
     @Nonnull
     @Override
     public CompletableFuture<MqttMessage> process(@Nonnull MqttEndpoint endpoint, @Nonnull MqttMessage message) {
