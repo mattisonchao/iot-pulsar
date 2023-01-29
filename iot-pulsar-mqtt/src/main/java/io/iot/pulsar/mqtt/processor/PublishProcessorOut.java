@@ -34,7 +34,12 @@ public class PublishProcessorOut implements MqttProcessor {
         final String topicName = rawPublishMessage.getMetadata().getTopicName();
         final ByteBuf payload = rawPublishMessage.getPayload();
         final MqttQoS qos = rawPublishMessage.getMetadata().getQos();
-        int packetId = endpoint.getPacketId(rawPublishMessage.getMetadata());
+        final int packetId;
+        if (qos == MqttQoS.AT_MOST_ONCE) {
+            packetId = -1;
+        } else {
+            packetId = endpoint.getPacketId(rawPublishMessage.getMetadata());
+        }
         return CompletableFuture.completedFuture(MqttMessageBuilders
                 .publish()
                 .qos(qos)

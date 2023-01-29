@@ -187,6 +187,61 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
                     assertEquals(stats.getPublishers().size(), 0);
                 });
         pulsarAdmin.topics().delete(tp.toString());
+
+        // ======= section ===============================================
+        // using pulsar client produce and mqtt client consume
+        receivedMessage = new HashSet<>();
+        String identifier2 = UUID.randomUUID().toString();
+        Producer<byte[]> producer2 = pulsarClient.newProducer()
+                .topic(tp.toString())
+                .create();
+        Mqtt3BlockingClient client2 = Mqtt3Client.builder()
+                .identifier(identifier2)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        client2.connect();
+        Mqtt3SubAck subAck = client2.subscribeWith()
+                .topicFilter(topicName)
+                .qos(MqttQos.AT_MOST_ONCE)
+                .send();
+        Assert.assertEquals(subAck.getReturnCodes(), List.of(Mqtt3SubAckReturnCode.SUCCESS_MAXIMUM_QOS_0));
+        Mqtt3BlockingClient.Mqtt3Publishes publishes =
+                client2.publishes(MqttGlobalPublishFilter.SUBSCRIBED, true);
+        for (int i = 0; i < messageNum; i++) {
+            // pulsar client default is at-least-once
+            producer2.send((i + "").getBytes(StandardCharsets.UTF_8));
+        }
+        for (int i = 0; i < messageNum; i++) {
+            Optional<Mqtt3Publish> publishOptional = publishes.receive(2, TimeUnit.SECONDS);
+            // We need to make sure we don't lose anything.
+            if (publishOptional.isEmpty()) {
+                fail("Unexpected message number");
+            }
+            // verify the message order
+            Mqtt3Publish publishPacket = publishOptional.get();
+            String payload = new String(publishPacket.getPayloadAsBytes());
+            assertEquals(payload, i + "");
+            // ensure not duplicated
+            assertFalse(receivedMessage.contains(payload));
+            receivedMessage.add(payload);
+        }
+        // no more message
+        assertTrue(publishes.receive(2, TimeUnit.SECONDS).isEmpty());
+        // verify acknowledgement
+        internalStats = pulsarAdmin.topics().getInternalStats(tp.toString());
+        lastConfirmedEntry = internalStats.lastConfirmedEntry;
+        cursorStats = internalStats.cursors.get(identifier2);
+        assertEquals(cursorStats.markDeletePosition, lastConfirmedEntry);
+        // cleanup the resource
+        producer2.close();
+        // unsubscribe consumer
+        client2.unsubscribeWith().topicFilter(topicName).send();
+        client2.disconnect();
+        // check subscription
+        TopicStats stats = pulsarAdmin.topics().getStats(tp.toString());
+        assertEquals(stats.getSubscriptions().size(), 0);
+        pulsarAdmin.topics().delete(tp.toString());
     }
 
     @Test(dataProvider = "topicNames")

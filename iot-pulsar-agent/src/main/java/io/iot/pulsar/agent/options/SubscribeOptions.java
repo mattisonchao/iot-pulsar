@@ -14,6 +14,8 @@ public class SubscribeOptions {
     // todo support automatic clean up consumer
     @Builder.Default
     private final boolean agentHosted = false;
+    @Builder.Default
+    private final boolean reader = false;
     @Nullable
     @Builder.Default
     private final MessageConsumer messageConsumer = null;

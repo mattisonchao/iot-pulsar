@@ -49,10 +49,13 @@ public class SubscribeProcessor implements MqttProcessor {
                                 Unpooled.wrappedBuffer(messagePayload));
                 endpoint.processMessage(MqttProcessorController.Direction.OUT, rawPublishMessage);
             };
-            SubscribeOptions options = SubscribeOptions.builder()
+            final SubscribeOptions.SubscribeOptionsBuilder subscribeOptionsBuilder = SubscribeOptions.builder()
                     .subscriptionName(subscriptionName)
-                    .messageConsumer(messageConsumer)
-                    .build();
+                    .messageConsumer(messageConsumer);
+            if (qos == MqttQoS.AT_MOST_ONCE) {
+                subscribeOptionsBuilder.reader(true);
+            }
+            final SubscribeOptions options = subscribeOptionsBuilder.build();
             CompletableFuture<Void> subFuture = mqtt.getPulsarAgent().subscribe(topicName, options);
             futures.add(subFuture);
         }
