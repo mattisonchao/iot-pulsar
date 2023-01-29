@@ -4,7 +4,6 @@ import io.iot.pulsar.mqtt.Mqtt;
 import io.iot.pulsar.mqtt.endpoint.MqttEndpoint;
 import io.iot.pulsar.mqtt.messages.custom.RawPublishMessage;
 import io.iot.pulsar.mqtt.messages.custom.VoidMessage;
-import io.netty.handler.codec.mqtt.MqttFixedHeader;
 import io.netty.handler.codec.mqtt.MqttMessage;
 import io.netty.handler.codec.mqtt.MqttMessageIdVariableHeader;
 import io.netty.handler.codec.mqtt.MqttPubAckMessage;
