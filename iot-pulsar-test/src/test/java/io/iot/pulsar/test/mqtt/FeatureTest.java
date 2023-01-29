@@ -19,5 +19,7 @@ public interface FeatureTest {
     void testUniqueClientIdentifier();
 
     @Test
+    void testQos0(String topicName);
+    @Test
     void testQos1(String topicName);
 }

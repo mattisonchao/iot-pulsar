@@ -3,6 +3,7 @@ package io.iot.pulsar.mqtt.processor;
 import io.iot.pulsar.mqtt.Mqtt;
 import io.iot.pulsar.mqtt.endpoint.MqttEndpoint;
 import io.iot.pulsar.mqtt.messages.code.MqttPubReturnCode;
+import io.iot.pulsar.mqtt.messages.custom.VoidMessage;
 import io.iot.pulsar.mqtt.utils.EnhanceCompletableFutures;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.mqtt.MqttFixedHeader;
@@ -34,8 +35,7 @@ public class PublishProcessorIn implements MqttProcessor {
         MqttPublishVariableHeader var = publishMessage.variableHeader();
         int packetId = var.packetId();
         final MqttQoS mqttQoS = fixed.qosLevel();
-        // Support at least once only
-        if (mqttQoS != MqttQoS.AT_LEAST_ONCE) {
+        if (mqttQoS == MqttQoS.EXACTLY_ONCE) {
             MqttMessage rejectPubAck = MqttMessageBuilders
                     .pubAck()
                     .packetId(packetId)
@@ -55,10 +55,21 @@ public class PublishProcessorIn implements MqttProcessor {
                         log.debug("[IOT-MQTT][{}][{}] has sent a message {} to topic {}. qos: {}",
                                 endpoint.remoteAddress(), endpoint.identifier(), packetId, topicName, mqttQoS);
                     }
-                    return MqttMessageBuilders.pubAck()
-                            .packetId(packetId)
-                            .reasonCode(MqttPubReturnCode.ACCEPT.getByte(endpoint.version()))
-                            .build();
+                    switch (mqttQoS) {
+                        case AT_MOST_ONCE:
+                            // at-most-once no need acknowledgement
+                            return VoidMessage.create();
+                        case AT_LEAST_ONCE:
+                            return MqttMessageBuilders.pubAck()
+                                    .packetId(packetId)
+                                    .reasonCode(MqttPubReturnCode.ACCEPT.getByte(endpoint.version()))
+                                    .build();
+                        default:
+                            return MqttMessageBuilders.pubAck()
+                                    .packetId(packetId)
+                                    .reasonCode(MqttPubReturnCode.UNSPECIFIED_ERROR.getByte(endpoint.version()))
+                                    .build();
+                    }
                 })
                 .exceptionally(ex -> {
                     final Throwable rc = EnhanceCompletableFutures.unwrap(ex);
@@ -72,7 +83,7 @@ public class PublishProcessorIn implements MqttProcessor {
                     }
                     return MqttMessageBuilders.pubAck()
                             .packetId(packetId)
-                            .reasonCode(MqttPubReturnCode.SERVER_INTERNAL_ERROR.getByte(endpoint.version()))
+                            .reasonCode(MqttPubReturnCode.UNSPECIFIED_ERROR.getByte(endpoint.version()))
                             .build();
                 });
     }
