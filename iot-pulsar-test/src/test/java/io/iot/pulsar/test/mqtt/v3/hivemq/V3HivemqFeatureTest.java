@@ -21,9 +21,11 @@ import com.hivemq.client.mqtt.mqtt5.message.connect.connack.Mqtt5ConnAckReasonCo
 import io.iot.pulsar.test.env.IotPulsarBase;
 import io.iot.pulsar.test.mqtt.FeatureTest;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
@@ -31,7 +33,9 @@ import lombok.SneakyThrows;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Message;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
+import org.apache.pulsar.client.api.Reader;
 import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.ManagedLedgerInternalStats;
@@ -117,6 +121,73 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
         client3.disconnect();
     }
 
+    @Test(dataProvider = "topicNames")
+    @Override
+    @SneakyThrows
+    public void testQos0(String topicName) {
+        int messageNum = 100;
+        final TopicName tp;
+        if (topicName.startsWith(TopicDomain.persistent.value())) {
+            tp = TopicName.get(topicName);
+        } else {
+            tp = TopicName.get(Codec.encode(topicName));
+        }
+        String identifier = UUID.randomUUID().toString();
+
+        // ^^ preparing
+        // using mqtt client produce and pulsar client consume
+        Set<String> receivedMessage = new HashSet<>();
+
+        Reader<byte[]> reader = pulsarClient.newReader()
+                .topic(tp.toString())
+                .startMessageId(MessageId.latest)
+                .subscriptionName("qos-0-reader")
+                .create();
+
+        Mqtt3BlockingClient client1 = Mqtt3Client.builder()
+                .identifier(identifier)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        client1.connect();
+        // Send messages to topic
+        for (int i = 0; i < messageNum; i++) {
+            client1.publishWith()
+                    .topic(topicName)
+                    .qos(MqttQos.AT_MOST_ONCE)
+                    .payload((i + "").getBytes(StandardCharsets.UTF_8))
+                    .send();
+        }
+        for (int i = 0; i < messageNum; i++) {
+            Message<byte[]> message = reader.readNext(2, TimeUnit.SECONDS);
+            if (message == null) {
+                break;
+            }
+            String payload = new String(message.getValue());
+            assertEquals(payload, i + "");
+            // ensure not duplicated
+            assertFalse(receivedMessage.contains(payload));
+            receivedMessage.add(payload);
+        }
+        // no more message
+        assertNull(reader.readNext(2, TimeUnit.SECONDS));
+
+        // verify acknowledgement
+        PersistentTopicInternalStats internalStats = pulsarAdmin.topics().getInternalStats(tp.toString());
+        String lastConfirmedEntry = internalStats.lastConfirmedEntry;
+        ManagedLedgerInternalStats.CursorStats cursorStats = internalStats.cursors.get("qos-0-reader");
+        assertEquals(cursorStats.markDeletePosition, lastConfirmedEntry);
+        // cleanup the resource
+        reader.close();
+        client1.disconnect();
+        // waiting for producer GC
+        Awaitility.await().atMost(20, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    TopicStats stats = pulsarAdmin.topics().getStats(tp.toString());
+                    assertEquals(stats.getPublishers().size(), 0);
+                });
+        pulsarAdmin.topics().delete(tp.toString());
+    }
 
     @Test(dataProvider = "topicNames")
     @Override
@@ -291,6 +362,7 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
                         assertEquals(pulsarAdmin.topics().getStats(tp.toString()).getPublishers().size(), 0));
         pulsarAdmin.topics().delete(tp.toString());
     }
+
 
     @Test
     @Override
