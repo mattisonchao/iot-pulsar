@@ -26,7 +26,6 @@ public class PublishAckProcessor implements MqttProcessor {
     public CompletableFuture<MqttMessage> process(@Nonnull MqttEndpoint endpoint, @Nonnull MqttMessage message) {
         final MqttPubAckMessage pubAckMessage = (MqttPubAckMessage) message;
         final MqttMessageIdVariableHeader var = pubAckMessage.variableHeader();
-        final MqttFixedHeader fix = pubAckMessage.fixedHeader();
         int packetId = var.messageId();
         final Optional<RawPublishMessage.Metadata> agentMessageMetadata = endpoint.getAgentMessageMetadata(packetId);
         if (agentMessageMetadata.isEmpty()) {
