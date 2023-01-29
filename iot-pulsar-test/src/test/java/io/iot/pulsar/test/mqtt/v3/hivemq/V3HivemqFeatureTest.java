@@ -242,6 +242,66 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
         TopicStats stats = pulsarAdmin.topics().getStats(tp.toString());
         assertEquals(stats.getSubscriptions().size(), 0);
         pulsarAdmin.topics().delete(tp.toString());
+
+        // ======= section ===============================================
+        // using mqtt client produce and mqtt client consume
+        String identifier3 = UUID.randomUUID().toString();
+        String identifier4 = UUID.randomUUID().toString();
+        Mqtt3BlockingClient client3 = Mqtt3Client.builder()
+                .identifier(identifier3)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        Mqtt3BlockingClient client4 = Mqtt3Client.builder()
+                .identifier(identifier4)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        client3.connect();
+        client4.connect();
+        subAck = client3.subscribeWith()
+                .topicFilter(topicName)
+                .qos(MqttQos.AT_MOST_ONCE)
+                .send();
+        Assert.assertEquals(subAck.getReturnCodes(), List.of(Mqtt3SubAckReturnCode.SUCCESS_MAXIMUM_QOS_0));
+        publishes = client3.publishes(MqttGlobalPublishFilter.SUBSCRIBED, true);
+        // Send messages to topic
+        for (int i = 0; i < messageNum; i++) {
+            client4.publishWith()
+                    .topic(topicName)
+                    .qos(MqttQos.AT_MOST_ONCE)
+                    .payload((i + "").getBytes(StandardCharsets.UTF_8))
+                    .send();
+        }
+        for (int i = 0; i < messageNum; i++) {
+            Optional<Mqtt3Publish> publishOptional = publishes.receive(2, TimeUnit.SECONDS);
+            // We need to make sure we don't lose anything.
+            if (publishOptional.isEmpty()) {
+                fail("Unexpected message number");
+            }
+            // verify the message order
+            Mqtt3Publish publishPacket = publishOptional.get();
+            assertEquals(new String(publishPacket.getPayloadAsBytes()), i + "");
+        }
+        // no more message
+        assertTrue(publishes.receive(2, TimeUnit.SECONDS).isEmpty());
+        // verify acknowledgement
+        internalStats = pulsarAdmin.topics().getInternalStats(tp.toString());
+        lastConfirmedEntry = internalStats.lastConfirmedEntry;
+        cursorStats = internalStats.cursors.get(identifier3);
+        assertEquals(cursorStats.markDeletePosition, lastConfirmedEntry);
+        // unsubscribe consumer
+        client3.unsubscribeWith().topicFilter(topicName).send();
+        client3.disconnect();
+        // check subscription
+        stats = pulsarAdmin.topics().getStats(tp.toString());
+        assertEquals(stats.getSubscriptions().size(), 0);
+        client4.disconnect();
+        // waiting for producer GC
+        Awaitility.await().atMost(20, TimeUnit.SECONDS)
+                .untilAsserted(() ->
+                        assertEquals(pulsarAdmin.topics().getStats(tp.toString()).getPublishers().size(), 0));
+        pulsarAdmin.topics().delete(tp.toString());
     }
 
     @Test(dataProvider = "topicNames")
