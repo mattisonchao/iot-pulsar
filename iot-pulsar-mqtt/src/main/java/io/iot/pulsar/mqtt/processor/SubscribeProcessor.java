@@ -34,7 +34,6 @@ public class SubscribeProcessor implements MqttProcessor {
     @Override
     public CompletableFuture<MqttMessage> process(@Nonnull MqttEndpoint endpoint, @Nonnull MqttMessage message) {
         final MqttSubscribeMessage subscribeMessage = (MqttSubscribeMessage) message;
-        final MqttFixedHeader fixed = subscribeMessage.fixedHeader();
         final MqttMessageIdVariableHeader var = subscribeMessage.variableHeader();
         final MqttSubscribePayload payload = subscribeMessage.payload();
         int packetId = var.messageId();
