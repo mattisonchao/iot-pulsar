@@ -7,6 +7,7 @@ import io.iot.pulsar.mqtt.endpoint.MqttEndpointImpl;
 import io.iot.pulsar.mqtt.endpoint.MqttEndpointProperties;
 import io.iot.pulsar.mqtt.endpoint.RejectOnlyMqttEndpoint;
 import io.iot.pulsar.mqtt.messages.Identifier;
+import io.iot.pulsar.mqtt.processor.MqttProcessorController;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderResult;
@@ -48,7 +49,7 @@ public class MqttInboundHandler extends ChannelInboundHandlerAdapter {
         final DecoderResult result = ((MqttMessage) msg).decoderResult();
         if (result.isFailure()) {
             MqttInboundHandler.this.mqttEndpoint = new RejectOnlyMqttEndpoint(ctx.channel());
-            mqttEndpoint.swallow((MqttMessage) msg);
+            mqttEndpoint.processMessage(MqttProcessorController.Direction.IN, (MqttMessage) msg);
             return;
         }
         MqttFixedHeader fixed = ((MqttMessage) msg).fixedHeader();
@@ -56,7 +57,7 @@ public class MqttInboundHandler extends ChannelInboundHandlerAdapter {
             // After a Network Connection is established by a Client to a Server,
             // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
             MqttInboundHandler.this.mqttEndpoint = new RejectOnlyMqttEndpoint(ctx.channel());
-            mqttEndpoint.swallow((MqttMessage) msg);
+            mqttEndpoint.processMessage(MqttProcessorController.Direction.IN, (MqttMessage) msg);
             return;
         }
         if (fixed.messageType() == MqttMessageType.CONNECT) {
@@ -96,6 +97,6 @@ public class MqttInboundHandler extends ChannelInboundHandlerAdapter {
                     .processorController(mqtt.getProcessorController())
                     .build();
         }
-        mqttEndpoint.swallow((MqttMessage) msg);
+        mqttEndpoint.processMessage(MqttProcessorController.Direction.IN, (MqttMessage) msg);
     }
 }

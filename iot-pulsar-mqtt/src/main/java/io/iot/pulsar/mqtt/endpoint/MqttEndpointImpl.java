@@ -3,6 +3,7 @@ package io.iot.pulsar.mqtt.endpoint;
 import io.iot.pulsar.mqtt.MqttChannelInitializer;
 import io.iot.pulsar.mqtt.auth.AuthData;
 import io.iot.pulsar.mqtt.messages.Identifier;
+import io.iot.pulsar.mqtt.messages.custom.RawPublishMessage;
 import io.iot.pulsar.mqtt.messages.custom.VoidMessage;
 import io.iot.pulsar.mqtt.messages.will.WillMessage;
 import io.iot.pulsar.mqtt.processor.MqttProcessorController;
@@ -15,11 +16,15 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import java.net.SocketAddress;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
+import org.roaringbitmap.RoaringBitmap;
 
 @Slf4j
 @Builder
@@ -34,6 +39,8 @@ public class MqttEndpointImpl implements MqttEndpoint {
     private volatile String authRole;
     private final boolean willFlag;
     private final WillMessage willMessage;
+    private final RoaringBitmap availablePacketIds = new RoaringBitmap();
+    private final Map<Integer, RawPublishMessage.Metadata> packetIdPair = new ConcurrentHashMap<>();
 
     @Nonnull
     @Override
@@ -83,13 +90,35 @@ public class MqttEndpointImpl implements MqttEndpoint {
     }
 
     @Override
+    public synchronized int getPacketId(@Nonnull RawPublishMessage.Metadata agentMessageMetadata) {
+        // 0 is invalid message id
+        int nextPacketId = (int) availablePacketIds.nextAbsentValue(1);
+        availablePacketIds.add(nextPacketId);
+        packetIdPair.put(nextPacketId, agentMessageMetadata);
+        return nextPacketId;
+    }
+
+    @Nonnull
+    @Override
+    public synchronized Optional<RawPublishMessage.Metadata> getAgentMessageMetadata(int packetId) {
+        return Optional.ofNullable(packetIdPair.get(packetId));
+    }
+
+    @Override
+    public synchronized void releasePacketId(int packetId) {
+        packetIdPair.remove(packetId);
+        availablePacketIds.remove(packetId);
+    }
+
+    @Override
     public long initTime() {
         return initTime;
     }
 
     @Override
-    public void swallow(@Nonnull MqttMessage mqttMessage) {
-        processorController.process(mqttMessage.fixedHeader().messageType(), this, mqttMessage)
+    public void processMessage(@Nonnull MqttProcessorController.Direction direction, @Nonnull MqttMessage mqttMessage) {
+        processorController.process(direction, mqttMessage.fixedHeader().messageType(), this,
+                        mqttMessage)
                 // todo: Improve the writing process. Not all messages need to flush immediately.
                 .whenComplete((ack, processError) -> {
                     if (processError != null) {

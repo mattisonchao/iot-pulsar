@@ -4,6 +4,7 @@ import io.iot.pulsar.mqtt.messages.Identifier;
 import io.iot.pulsar.mqtt.messages.MqttFixedHeaders;
 import io.iot.pulsar.mqtt.messages.code.MqttConnReturnCode;
 import io.iot.pulsar.mqtt.messages.custom.ConnInternalErrorMessage;
+import io.iot.pulsar.mqtt.processor.MqttProcessorController;
 import io.iot.pulsar.mqtt.utils.EnhanceCompletableFutures;
 import io.netty.channel.Channel;
 import io.netty.handler.codec.mqtt.MqttConnAckVariableHeader;
@@ -46,7 +47,12 @@ public class RejectOnlyMqttEndpoint implements MqttEndpoint {
     }
 
     @Override
-    public void swallow(@Nonnull MqttMessage mqttMessage) {
+    public void processMessage(@Nonnull MqttProcessorController.Direction direction,
+                               @Nonnull MqttMessage mqttMessage) {
+        if (direction == MqttProcessorController.Direction.OUT) {
+            // we don't need reject output message.
+            return;
+        }
         final MqttMessage ack;
         // Check custom message
         if (mqttMessage instanceof ConnInternalErrorMessage) {
