@@ -51,7 +51,6 @@ public class UnsubscribeProcessor implements MqttProcessor {
     @Override
     public CompletableFuture<MqttMessage> process(@Nonnull MqttEndpoint endpoint, @Nonnull MqttMessage message) {
         final MqttUnsubscribeMessage unsubscribeMessage = (MqttUnsubscribeMessage) message;
-        final MqttFixedHeader fixed = unsubscribeMessage.fixedHeader();
         final MqttMessageIdAndPropertiesVariableHeader var =
                 unsubscribeMessage.idAndPropertiesVariableHeader();
         final MqttUnsubscribePayload payload = unsubscribeMessage.payload();
