@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import lombok.SneakyThrows;
@@ -36,6 +37,8 @@ import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.Reader;
+import org.apache.pulsar.client.api.transaction.Transaction;
+import org.apache.pulsar.client.api.transaction.TransactionBuilder;
 import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.ManagedLedgerInternalStats;
@@ -478,6 +481,76 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
         pulsarAdmin.topics().delete(tp.toString());
     }
 
+    @Test(dataProvider = "topicNames")
+    @Override
+    @SneakyThrows
+    public void testQos2(String topicName) {
+        int messageNum = 100;
+        final TopicName tp;
+        if (topicName.startsWith(TopicDomain.persistent.value())) {
+            tp = TopicName.get(topicName);
+        } else {
+            tp = TopicName.get(Codec.encode(topicName));
+        }
+        String identifier = UUID.randomUUID().toString();
+
+        // ^^ preparing
+        // using mqtt client produce and pulsar client consume
+        Set<String> receivedMessage = new HashSet<>();
+
+        Consumer<byte[]> consumer1 = pulsarClient.newConsumer()
+                .topic(tp.toString())
+                .subscriptionName("qos-2-consumer")
+                .subscribe();
+
+        Mqtt3BlockingClient client1 = Mqtt3Client.builder()
+                .identifier(identifier)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        client1.connect();
+        // Send messages to topic
+        for (int i = 0; i < messageNum; i++) {
+            client1.publishWith()
+                    .topic(topicName)
+                    .qos(MqttQos.EXACTLY_ONCE)
+                    .payload((i + "").getBytes(StandardCharsets.UTF_8))
+                    .send();
+        }
+        Transaction transaction = pulsarClient.newTransaction().build().join();
+        for (int i = 0; i < messageNum; i++) {
+            Message<byte[]> message = consumer1.receive(2, TimeUnit.SECONDS);
+            if (message == null) {
+                break;
+            }
+            String payload = new String(message.getValue());
+            assertEquals(payload, i + "");
+            // ensure not duplicated
+            assertFalse(receivedMessage.contains(payload));
+            receivedMessage.add(payload);
+            consumer1.acknowledgeAsync(message.getMessageId(), transaction).join();
+        }
+        transaction.commit().join();
+        // no more message
+        assertNull(consumer1.receive(2, TimeUnit.SECONDS));
+
+        // verify acknowledgement
+        PersistentTopicInternalStats internalStats = pulsarAdmin.topics().getInternalStats(tp.toString());
+        String lastConfirmedEntry = internalStats.lastConfirmedEntry;
+        ManagedLedgerInternalStats.CursorStats cursorStats = internalStats.cursors.get("qos-2-consumer");
+        assertEquals(cursorStats.markDeletePosition, lastConfirmedEntry);
+        // cleanup the resource
+        consumer1.close();
+        client1.disconnect();
+        // waiting for producer GC
+        Awaitility.await().atMost(20, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    TopicStats stats = pulsarAdmin.topics().getStats(tp.toString());
+                    assertEquals(stats.getPublishers().size(), 0);
+                });
+        pulsarAdmin.topics().delete(tp.toString());
+
+    }
 
     @Test
     @Override

@@ -9,6 +9,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.mqtt.MqttFixedHeader;
 import io.netty.handler.codec.mqtt.MqttMessage;
 import io.netty.handler.codec.mqtt.MqttMessageBuilders;
+import io.netty.handler.codec.mqtt.MqttMessageType;
+import io.netty.handler.codec.mqtt.MqttProperties;
+import io.netty.handler.codec.mqtt.MqttPubReplyMessageVariableHeader;
 import io.netty.handler.codec.mqtt.MqttPublishMessage;
 import io.netty.handler.codec.mqtt.MqttPublishVariableHeader;
 import io.netty.handler.codec.mqtt.MqttQoS;
@@ -35,7 +38,7 @@ public class PublishProcessorIn implements MqttProcessor {
         MqttPublishVariableHeader var = publishMessage.variableHeader();
         int packetId = var.packetId();
         final MqttQoS mqttQoS = fixed.qosLevel();
-        if (mqttQoS == MqttQoS.EXACTLY_ONCE) {
+        if (mqttQoS == MqttQoS.FAILURE) {
             MqttMessage rejectPubAck = MqttMessageBuilders
                     .pubAck()
                     .packetId(packetId)
@@ -64,6 +67,20 @@ public class PublishProcessorIn implements MqttProcessor {
                                     .packetId(packetId)
                                     .reasonCode(MqttPubReturnCode.ACCEPT.getByte(endpoint.version()))
                                     .build();
+                        case EXACTLY_ONCE:
+                            /**
+                             * We chose method B to implement qos2.
+                             * See http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc385349369
+                             * [4.3.3 QoS 2: Exactly once delivery]
+                             */
+                            MqttFixedHeader mqttFixedHeader =
+                                    new MqttFixedHeader(MqttMessageType.PUBREC, false,
+                                            MqttQoS.AT_MOST_ONCE, false, 0);
+                            MqttPubReplyMessageVariableHeader mqttPubAckVariableHeader =
+                                    new MqttPubReplyMessageVariableHeader(packetId,
+                                            MqttPubReturnCode.ACCEPT.getByte(endpoint.version()),
+                                            MqttProperties.NO_PROPERTIES);
+                            return new MqttMessage(mqttFixedHeader, mqttPubAckVariableHeader);
                         default:
                             return MqttMessageBuilders.pubAck()
                                     .packetId(packetId)

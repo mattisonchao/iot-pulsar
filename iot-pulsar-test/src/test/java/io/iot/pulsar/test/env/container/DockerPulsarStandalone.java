@@ -83,7 +83,7 @@ public class DockerPulsarStandalone implements PulsarEnv {
         }
         // Expose 1883 for MQTT
         pulsar.addExposedPort(1883);
-        pulsar.start();
+        pulsar.withTransactions().start();
         log.info("====== Start Apache Pulsar success. ======");
         this.brokerURL = pulsar.getPulsarBrokerUrl();
         this.webServiceURL = pulsar.getHttpServiceUrl();

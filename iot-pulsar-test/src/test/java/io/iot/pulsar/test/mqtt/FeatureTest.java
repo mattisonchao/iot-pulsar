@@ -22,4 +22,6 @@ public interface FeatureTest {
     void testQos0(String topicName);
     @Test
     void testQos1(String topicName);
+    @Test
+    void testQos2(String topicName);
 }

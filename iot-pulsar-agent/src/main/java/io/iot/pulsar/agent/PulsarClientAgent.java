@@ -36,9 +36,10 @@ public class PulsarClientAgent implements PulsarAgent {
     private final OrderedExecutor orderedExecutor;
     private final PulsarProducerManager producerManager;
     private final PulsarConsumerManager consumerManager;
+    private final PulsarClient client;
 
     public PulsarClientAgent(@Nonnull BrokerService service) throws PulsarServerException {
-        final PulsarClient client = service.getPulsar().getClient();
+        this.client = service.getPulsar().getClient();
         this.metadata = new SystemTopicMetadata(client);
         // todo Maybe we need pulsar to enable authentication even when iot is not enabled, though.
         // But that would introduce more complexity and I think maybe we can wait for users.

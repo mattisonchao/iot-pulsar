@@ -89,6 +89,7 @@ public class MockedPulsarService implements PulsarEnv {
         configuration.setNumExecutorThreadPoolSize(5);
         configuration.setBrokerMaxConnections(0);
         configuration.setBrokerMaxConnectionsPerIp(0);
+        configuration.setTransactionCoordinatorEnabled(true);
         return configuration;
     }
 

@@ -53,6 +53,7 @@ public abstract class IotPulsarBase {
                 .build();
         IotPulsarBase.this.pulsarClient = PulsarClient.builder()
                 .serviceUrl(brokerUrl)
+                .enableTransaction(true)
                 .authentication(defaultConfiguration.getBrokerClientAuthenticationPlugin(),
                         defaultConfiguration.getBrokerClientAuthenticationParameters())
                 .build();

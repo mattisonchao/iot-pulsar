@@ -11,6 +11,7 @@ import io.iot.pulsar.mqtt.processor.PingProcessor;
 import io.iot.pulsar.mqtt.processor.PublishAckProcessor;
 import io.iot.pulsar.mqtt.processor.PublishProcessorIn;
 import io.iot.pulsar.mqtt.processor.PublishProcessorOut;
+import io.iot.pulsar.mqtt.processor.PublishRelProcessorIn;
 import io.iot.pulsar.mqtt.processor.SubscribeProcessor;
 import io.iot.pulsar.mqtt.processor.UnsubscribeProcessor;
 import io.netty.handler.codec.mqtt.MqttMessageType;
@@ -50,6 +51,8 @@ public class Mqtt {
                 new PublishAckProcessor(this));
         processorController.register(MqttProcessorController.Direction.IN, MqttMessageType.DISCONNECT,
                 new DisconnectProcessor());
+        processorController.register(MqttProcessorController.Direction.IN, MqttMessageType.PUBREL,
+                new PublishRelProcessorIn());
 
         processorController.register(MqttProcessorController.Direction.OUT, MqttMessageType.PUBLISH,
                 new PublishProcessorOut(this));
