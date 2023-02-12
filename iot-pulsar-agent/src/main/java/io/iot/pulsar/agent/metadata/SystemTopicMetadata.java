@@ -5,8 +5,10 @@ import com.google.common.base.Throwables;
 import io.iot.pulsar.agent.pool.ThreadPools;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -32,6 +34,7 @@ public class SystemTopicMetadata implements Metadata<String, byte[]> {
     private volatile CompletableFuture<TableView<byte[]>> globalView;
     private volatile CompletableFuture<Producer<byte[]>> globalProducer;
     private volatile CompletableFuture<Void> lastSentFuture = CompletableFuture.completedFuture(null);
+    private final Map<String, List<Consumer<byte[]>>> listeners = new ConcurrentHashMap<>();
 
     public SystemTopicMetadata(@Nonnull PulsarClient client) {
         this.client = client;
@@ -44,17 +47,42 @@ public class SystemTopicMetadata implements Metadata<String, byte[]> {
         return globalView.thenApplyAsync(view -> Optional.ofNullable(view.get(key)), inE.chooseThread(key));
     }
 
-    private synchronized void initView() {
+    private synchronized boolean initView() {
         if (globalView != null) {
-            return;
+            return false;
         }
         synchronized (this) {
             if (globalView != null) {
-                return;
+                return false;
             }
             SystemTopicMetadata.this.globalView = client.newTableViewBuilder(Schema.BYTES)
                     .topic(GLOBAL_META_SPACE)
-                    .createAsync();
+                    .createAsync()
+                    .thenApply(view -> {
+                        view.forEachAndListen((innerKey, value) -> {
+                            try {
+                                out.execute(() -> {
+                                    final List<Consumer<byte[]>> consumers = listeners.get(innerKey);
+                                    if (consumers == null) {
+                                        return;
+                                    }
+                                    consumers.forEach(c -> {
+                                        try {
+                                            c.accept(value);
+                                        } catch (Throwable ex) {
+                                            log.warn("[IOT-AGENT] got an exception while invoke listener callback.",
+                                                    ex);
+                                        }
+                                    });
+                                });
+                            } catch (Throwable ex) {
+                                log.error("[IOT-AGENT] got an exception while "
+                                        + "submitting a listener callback to the executor.");
+                            }
+                        });
+                        return view;
+                    });
+            return true;
         }
     }
 
@@ -89,25 +117,37 @@ public class SystemTopicMetadata implements Metadata<String, byte[]> {
     @Override
     public CompletableFuture<Void> listen(@Nonnull String key, @Nonnull Consumer<byte[]> listener) {
         final CompletableFuture<Void> cleanupFuture = new CompletableFuture<>();
-        initView();
-        this.globalView.thenAccept(view -> view.forEachAndListen((innerKey, value) -> {
-            if (!innerKey.equals(key)) {
-                return;
+        // ======= cleanup finally
+        cleanupFuture.whenComplete((ignore1, ignore2) -> {
+            listeners.compute(key, (k, v) -> {
+                if (v == null) {
+                    return null;
+                }
+                log.debug("[IOT-AGENT] Unregistered listener for key" + key);
+                v.remove(listener);
+                return v;
+            });
+        });
+
+        listeners.compute(key, (k, v) -> {
+            if (v == null) {
+                final List<Consumer<byte[]>> listeners = new ArrayList<>();
+                listeners.add(listener);
+                return listeners;
             }
-            try {
-                out.execute(() -> {
-                    try {
-                        listener.accept(value);
-                    } catch (Throwable ex) {
-                        log.warn("[IOT-AGENT] got an exception while invoke listener callback.",
-                                ex);
-                    }
-                });
-            } catch (Throwable ex) {
-                log.error("[IOT-AGENT] got an exception while "
-                        + "submitting a listener callback to the executor.");
-            }
-        }));
+            log.debug("[IOT-AGENT] Registered listener for key: " + key);
+            v.add(listener);
+            return v;
+        });
+        if(!initView()) {
+            // We can check actual events to avoid lost possibility while the view has already inited.
+            globalView.thenAccept(view -> {
+                final byte[] bytes = view.get(key);
+                if (bytes != null) {
+                    listener.accept(bytes);
+                }
+            });
+        }
         return cleanupFuture;
     }
 
