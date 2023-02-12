@@ -139,7 +139,7 @@ public class SystemTopicMetadata implements Metadata<String, byte[]> {
             v.add(listener);
             return v;
         });
-        if(!initView()) {
+        if (!initView()) {
             // We can check actual events to avoid lost possibility while the view has already inited.
             globalView.thenAccept(view -> {
                 final byte[] bytes = view.get(key);
