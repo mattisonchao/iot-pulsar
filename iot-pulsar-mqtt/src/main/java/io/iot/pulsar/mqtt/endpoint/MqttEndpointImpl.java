@@ -12,6 +12,7 @@ import io.iot.pulsar.mqtt.processor.MqttProcessorController;
 import io.iot.pulsar.mqtt.utils.EnhanceCompletableFutures;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.mqtt.MqttConnAckMessage;
 import io.netty.handler.codec.mqtt.MqttMessage;
 import io.netty.handler.codec.mqtt.MqttMessageBuilders;
 import io.netty.handler.codec.mqtt.MqttMessageType;
@@ -22,6 +23,8 @@ import io.netty.handler.codec.mqtt.MqttVersion;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -31,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
@@ -58,6 +62,30 @@ public class MqttEndpointImpl implements MqttEndpoint {
     private final List<Supplier<CompletableFuture<Void>>> closeCallbacks =
             Collections.synchronizedList(new ArrayList<>());
     private final Map<String, MqttTopicSubscription> subscriptions = new ConcurrentHashMap<>();
+    private volatile Status status = Status.INIT;
+    private static final VarHandle STATUS;
+
+    static {
+        try {
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            STATUS = l.findVarHandle(MqttEndpointImpl.class, "status", Status.class);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+        // Reduce the risk of rare disastrous classloading in first call to
+        // LockSupport.park: https://bugs.openjdk.java.net/browse/JDK-8074773
+        Class<?> ensureLoaded = LockSupport.class;
+    }
+
+    private volatile CompletableFuture<Void> closeFuture;
+
+    enum Status {
+        INIT,
+        CONNECTING,
+        CONNECTED,
+        CLOSING,
+        CLOSED
+    }
 
     @Nonnull
     @Override
@@ -102,7 +130,10 @@ public class MqttEndpointImpl implements MqttEndpoint {
 
     @Nonnull
     @Override
-    public CompletableFuture<Void> close() {
+    public synchronized CompletableFuture<Void> close() {
+        if (stopWorking()) {
+            return closeFuture;
+        }
         CompletableFuture<Void> cbFuture =
                 CompletableFuture.allOf(closeCallbacks.stream().map(Supplier::get)
                                 .collect(Collectors.toList()).toArray(CompletableFuture[]::new))
@@ -111,28 +142,36 @@ public class MqttEndpointImpl implements MqttEndpoint {
                                     Throwables.getRootCause(ex));
                             return null;
                         });
-        return cbFuture.thenCompose(__ -> EnhanceCompletableFutures.from(ctx.channel().close()));
+        closeFuture = cbFuture.thenCompose(__ -> {
+            STATUS.set(this, Status.CLOSING);
+            return EnhanceCompletableFutures.from(ctx.channel().close());
+        }).thenAccept(__ -> STATUS.set(this, Status.CLOSED));
+        return closeFuture;
     }
 
     @Override
-    public synchronized int getPacketId(@Nonnull RawPublishMessage.Metadata agentMessageMetadata) {
-        // 0 is invalid message id
-        int nextPacketId = (int) availablePacketIds.nextAbsentValue(1);
-        availablePacketIds.add(nextPacketId);
-        packetIdPair.put(nextPacketId, agentMessageMetadata);
-        return nextPacketId;
+    public int getPacketId(@Nonnull RawPublishMessage.Metadata agentMessageMetadata) {
+        synchronized (availablePacketIds) {
+            // 0 is invalid message id
+            int nextPacketId = (int) availablePacketIds.nextAbsentValue(1);
+            availablePacketIds.add(nextPacketId);
+            packetIdPair.put(nextPacketId, agentMessageMetadata);
+            return nextPacketId;
+        }
     }
 
     @Nonnull
     @Override
-    public synchronized Optional<RawPublishMessage.Metadata> getAgentMessageMetadata(int packetId) {
+    public Optional<RawPublishMessage.Metadata> getAgentMessageMetadata(int packetId) {
         return Optional.ofNullable(packetIdPair.get(packetId));
     }
 
     @Override
-    public synchronized void releasePacketId(int packetId) {
-        packetIdPair.remove(packetId);
-        availablePacketIds.remove(packetId);
+    public void releasePacketId(int packetId) {
+        synchronized (availablePacketIds) {
+            packetIdPair.remove(packetId);
+            availablePacketIds.remove(packetId);
+        }
     }
 
     @Override
@@ -142,6 +181,9 @@ public class MqttEndpointImpl implements MqttEndpoint {
 
     @Override
     public void processMessage(@Nonnull MqttProcessorController.Direction direction, @Nonnull MqttMessage mqttMessage) {
+        if (stopWorking()) {
+            return;
+        }
         processorController.process(direction, mqttMessage.fixedHeader().messageType(), this,
                         mqttMessage)
                 // todo: Improve the writing process. Not all messages need to flush immediately.
@@ -164,6 +206,9 @@ public class MqttEndpointImpl implements MqttEndpoint {
                                     log.error("[IOT-MQTT][{}] Failed to send packet [{}] to client.", remoteAddress(),
                                             ack.fixedHeader().messageType(), ex);
                                     return;
+                                }
+                                if (ack instanceof MqttConnAckMessage) {
+                                    STATUS.set(this, Status.CONNECTED);
                                 }
                                 if (log.isDebugEnabled()) {
                                     log.debug("[IOT-MQTT][{}] Successfully sent packet [{}] to client.",
@@ -205,7 +250,9 @@ public class MqttEndpointImpl implements MqttEndpoint {
 
     @Override
     public void connectTime(long currentTime) {
-        this.connectTime = currentTime;
+        if (STATUS.compareAndSet(this, Status.INIT, Status.CONNECTING)) {
+            this.connectTime = currentTime;
+        }
     }
 
     @Override
@@ -214,7 +261,10 @@ public class MqttEndpointImpl implements MqttEndpoint {
     }
 
     @Override
-    public void updateInfo(@Nonnull MqttMetadataEvent.ClientInfo info) {
+    public synchronized void updateInfo(@Nonnull MqttMetadataEvent.ClientInfo info) {
+        if (stopWorking()) {
+            return;
+        }
         if (properties().isCleanSession()) {
             return;
         }
@@ -250,6 +300,11 @@ public class MqttEndpointImpl implements MqttEndpoint {
     @Override
     public Collection<MqttTopicSubscription> subscriptions() {
         return subscriptions.values();
+    }
+
+    private boolean stopWorking() {
+        final Status status = (Status) STATUS.getVolatile(this);
+        return status == Status.CLOSING || status == Status.CLOSED;
     }
 
     @Builder.Default
