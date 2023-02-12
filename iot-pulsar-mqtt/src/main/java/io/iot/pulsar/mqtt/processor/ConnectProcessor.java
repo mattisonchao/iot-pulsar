@@ -93,12 +93,14 @@ public class ConnectProcessor implements MqttProcessor {
         } else {
             authFuture = CompletableFuture.completedFuture(null);
         }
-        CompletableFuture<MqttMessage> sendFuture =
-                authFuture.thenApply(__ -> MqttMessageFactory.newMessage(MqttFixedHeaders.CONN_ACK,
-                        new MqttConnAckVariableHeader(MqttConnReturnCode.ACCEPT.getNettyCode(endpoint.version()), false,
-                                MqttProperties.NO_PROPERTIES), null));
-        sendFuture.thenAccept(__ -> mqtt.getMetadataDelegator().registerAndListenKickOut(endpoint));
-        return sendFuture
+        return authFuture.thenCompose(__ -> {
+                    endpoint.connectTime(System.currentTimeMillis());
+                    return mqtt.getMetadataDelegator().listenAndSendConnect(endpoint);
+                })
+                .thenApply(__ -> MqttMessageFactory.newMessage(MqttFixedHeaders.CONN_ACK,
+                        new MqttConnAckVariableHeader(MqttConnReturnCode.ACCEPT.getNettyCode(endpoint.version()),
+                                !endpoint.properties().isCleanSession(),
+                                MqttProperties.NO_PROPERTIES), null))
                 .exceptionally(ex -> {
                     final Throwable rc = EnhanceCompletableFutures.unwrap(ex);
                     log.error("[IOT-MQTT][{}][{}] Got an error when processor process connect messages.",

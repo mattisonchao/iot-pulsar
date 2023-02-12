@@ -31,6 +31,9 @@ public interface PulsarAgent {
     CompletableFuture<Void> unSubscribe(@Nonnull String topicName, @Nonnull String subscriptionName);
 
     @Nonnull
+    CompletableFuture<Void> disconnect(@Nonnull String topicName, @Nonnull String subscriptionName);
+
+    @Nonnull
     CompletableFuture<Void> acknowledgement(@Nonnull String topicName, @Nonnull String subscriptionName,
                                             @Nonnull byte[] messageId);
 }

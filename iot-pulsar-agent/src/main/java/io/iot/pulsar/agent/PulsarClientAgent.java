@@ -113,6 +113,18 @@ public class PulsarClientAgent implements PulsarAgent {
 
     @Nonnull
     @Override
+    public CompletableFuture<Void> disconnect(@Nonnull String topicName, @Nonnull String subscriptionName) {
+        final TopicName pulsarTopicName;
+        try {
+            pulsarTopicName = TopicNameUtils.convertToPulsarName(topicName);
+        } catch (IllegalArgumentException ex) {
+            return CompletableFuture.failedFuture(ex);
+        }
+        return consumerManager.disconnect(pulsarTopicName, subscriptionName);
+    }
+
+    @Nonnull
+    @Override
     public CompletableFuture<Void> acknowledgement(@Nonnull String topicName, @Nonnull String subscriptionName,
                                                    @Nonnull byte[] messageId) {
         final TopicName pulsarTopicName;

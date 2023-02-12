@@ -1,6 +1,8 @@
 package io.iot.pulsar.mqtt.endpoint;
 
+import com.google.common.base.Throwables;
 import io.iot.pulsar.mqtt.MqttChannelInitializer;
+import io.iot.pulsar.mqtt.api.proto.MqttMetadataEvent;
 import io.iot.pulsar.mqtt.auth.AuthData;
 import io.iot.pulsar.mqtt.messages.Identifier;
 import io.iot.pulsar.mqtt.messages.custom.RawPublishMessage;
@@ -11,15 +13,26 @@ import io.iot.pulsar.mqtt.utils.EnhanceCompletableFutures;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.mqtt.MqttMessage;
+import io.netty.handler.codec.mqtt.MqttMessageBuilders;
+import io.netty.handler.codec.mqtt.MqttMessageType;
+import io.netty.handler.codec.mqtt.MqttQoS;
+import io.netty.handler.codec.mqtt.MqttSubscribeMessage;
+import io.netty.handler.codec.mqtt.MqttTopicSubscription;
 import io.netty.handler.codec.mqtt.MqttVersion;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import java.net.SocketAddress;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Builder;
@@ -41,6 +54,10 @@ public class MqttEndpointImpl implements MqttEndpoint {
     private final WillMessage willMessage;
     private final RoaringBitmap availablePacketIds = new RoaringBitmap();
     private final Map<Integer, RawPublishMessage.Metadata> packetIdPair = new ConcurrentHashMap<>();
+    private volatile long connectTime;
+    private final List<Supplier<CompletableFuture<Void>>> closeCallbacks =
+            Collections.synchronizedList(new ArrayList<>());
+    private final Map<String, MqttTopicSubscription> subscriptions = new ConcurrentHashMap<>();
 
     @Nonnull
     @Override
@@ -86,7 +103,15 @@ public class MqttEndpointImpl implements MqttEndpoint {
     @Nonnull
     @Override
     public CompletableFuture<Void> close() {
-        return EnhanceCompletableFutures.from(ctx.channel().close());
+        CompletableFuture<Void> cbFuture =
+                CompletableFuture.allOf(closeCallbacks.stream().map(Supplier::get)
+                                .collect(Collectors.toList()).toArray(CompletableFuture[]::new))
+                        .exceptionally(ex -> {
+                            log.warn("[IOT-MQTT][{}] Got exception while invoke callback.", remoteAddress(),
+                                    Throwables.getRootCause(ex));
+                            return null;
+                        });
+        return cbFuture.thenCompose(__ -> EnhanceCompletableFutures.from(ctx.channel().close()));
     }
 
     @Override
@@ -149,6 +174,11 @@ public class MqttEndpointImpl implements MqttEndpoint {
     }
 
     @Override
+    public long connectTime() {
+        return connectTime;
+    }
+
+    @Override
     public void setKeepAlive(int keepAliveTimeSeconds) {
 
         ctx.pipeline().remove(MqttChannelInitializer.CONNECT_IDLE_NAME);
@@ -171,6 +201,55 @@ public class MqttEndpointImpl implements MqttEndpoint {
                 }
             });
         }
+    }
+
+    @Override
+    public void connectTime(long currentTime) {
+        this.connectTime = currentTime;
+    }
+
+    @Override
+    public void onClose(@Nonnull Supplier<CompletableFuture<Void>> callback) {
+        closeCallbacks.add(callback);
+    }
+
+    @Override
+    public void updateInfo(@Nonnull MqttMetadataEvent.ClientInfo info) {
+        if (properties().isCleanSession()) {
+            return;
+        }
+        final MqttMetadataEvent.Session session = info.getSession();
+        final List<MqttMetadataEvent.Subscription> old = session.getSubscriptionsList();
+        for (MqttMetadataEvent.Subscription subscription : old) {
+            if (subscriptions.containsKey(subscription.getTopicFilter())) {
+                continue;
+            }
+            final MqttSubscribeMessage subRequest = MqttMessageBuilders.subscribe()
+                    .messageId(1)
+                    .addSubscription(MqttQoS.valueOf(subscription.getQos().getNumber()), subscription.getTopicFilter())
+                    .build();
+            processorController.process(MqttProcessorController.Direction.IN, MqttMessageType.SUBSCRIBE, this,
+                            subRequest)
+                    .thenAccept(__ -> {
+                        log.info("[IOT-MQTT][{}][{}][{}] auto recovered session subscription.",
+                                remoteAddress(), subscription.getTopicFilter(), subscription.getQos());
+                    }).exceptionally(ex -> {
+                        log.error("[IOT-MQTT][{}][{}][{}] Got exception while auto recover session subscription.",
+                                remoteAddress(), subscription.getTopicFilter(), subscription.getQos(),
+                                Throwables.getRootCause(ex));
+                        return null;
+                    });
+        }
+    }
+
+    @Override
+    public void addConnectedSubscription(@Nonnull MqttTopicSubscription subscription) {
+        subscriptions.put(subscription.topicName(), subscription);
+    }
+
+    @Override
+    public Collection<MqttTopicSubscription> subscriptions() {
+        return subscriptions.values();
     }
 
     @Builder.Default

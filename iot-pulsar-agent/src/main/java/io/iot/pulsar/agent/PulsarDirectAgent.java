@@ -46,6 +46,12 @@ public class PulsarDirectAgent implements PulsarAgent {
 
     @Nonnull
     @Override
+    public CompletableFuture<Void> disconnect(@Nonnull String topicName, @Nonnull String subscriptionName) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Nonnull
+    @Override
     public CompletableFuture<Void> acknowledgement(@Nonnull String topicName, @Nonnull String subscriptionName,
                                                    @Nonnull byte[] messageId) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException());
