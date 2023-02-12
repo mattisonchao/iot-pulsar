@@ -60,25 +60,29 @@ public class SystemTopicMetadata implements Metadata<String, byte[]> {
                     .createAsync()
                     .thenApply(view -> {
                         view.forEachAndListen((innerKey, value) -> {
-                            try {
-                                out.execute(() -> {
-                                    final List<Consumer<byte[]>> consumers = listeners.get(innerKey);
-                                    if (consumers == null) {
-                                        return;
+                            // using concurrent hashmap to avoid concurrent modification exception
+                            listeners.compute(innerKey, (k, v) -> {
+                                if (v == null) {
+                                    return null;
+                                }
+                                v.forEach(c -> {
+                                    try {
+                                        out.execute(() -> {
+                                            try {
+                                                c.accept(value);
+                                            } catch (Throwable ex) {
+                                                log.warn("[IOT-AGENT] got an exception while invoke listener callback.",
+                                                        ex);
+                                            }
+                                        });
+                                    } catch (Throwable ex) {
+                                        log.error("[IOT-AGENT] got an exception while "
+                                                + "submitting a listener callback to the executor.");
                                     }
-                                    consumers.forEach(c -> {
-                                        try {
-                                            c.accept(value);
-                                        } catch (Throwable ex) {
-                                            log.warn("[IOT-AGENT] got an exception while invoke listener callback.",
-                                                    ex);
-                                        }
-                                    });
                                 });
-                            } catch (Throwable ex) {
-                                log.error("[IOT-AGENT] got an exception while "
-                                        + "submitting a listener callback to the executor.");
-                            }
+                                return v;
+                            });
+
                         });
                         return view;
                     });
@@ -123,19 +127,22 @@ public class SystemTopicMetadata implements Metadata<String, byte[]> {
                 if (v == null) {
                     return null;
                 }
-                log.debug("[IOT-AGENT] Unregistered listener for key" + key);
+                log.debug("[IOT-AGENT] Unregistered listener for key: " + key);
                 v.remove(listener);
+                if (v.size() == 0) {
+                    return null;
+                }
                 return v;
             });
         });
 
         listeners.compute(key, (k, v) -> {
+            log.debug("[IOT-AGENT] Registered listener for key: " + key);
             if (v == null) {
                 final List<Consumer<byte[]>> listeners = new ArrayList<>();
                 listeners.add(listener);
                 return listeners;
             }
-            log.debug("[IOT-AGENT] Registered listener for key: " + key);
             v.add(listener);
             return v;
         });
