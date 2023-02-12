@@ -78,6 +78,16 @@ public class PulsarConsumerManager {
         }, orderedExecutor.chooseThread(topicName));
     }
 
+    public CompletableFuture<Void> disconnect(@Nonnull TopicName topicName, @Nonnull String subscriptionName) {
+        return composeAsync(() -> {
+            final ConsumerContext context = consumerTable.remove(topicName, subscriptionName);
+            if (context == null) {
+                return CompletableFuture.completedFuture(null);
+            }
+            return context.close();
+        }, orderedExecutor.chooseThread(topicName));
+    }
+
     @Slf4j
     @NotThreadSafe
     public static class ConsumerContext {

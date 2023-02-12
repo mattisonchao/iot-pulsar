@@ -479,10 +479,104 @@ public abstract class V3HivemqFeatureTest extends IotPulsarBase implements Featu
     }
 
 
+    @SneakyThrows
     @Test
     @Override
     public void testCleanSession() {
+        String topic = "testCleanSession" + UUID.randomUUID();
+        TopicName pulsarTopic = TopicName.get(Codec.encode(topic));
+        int numOfMessages = 100;
 
+        // --- test clean session true
+        String identifier1 = UUID.randomUUID().toString();
+        String identifier2 = UUID.randomUUID().toString();
+        Mqtt3BlockingClient client1 = Mqtt3Client.builder()
+                .identifier(identifier1)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        Mqtt3BlockingClient client2 = Mqtt3Client.builder()
+                .identifier(identifier2)
+                .serverHost(brokerHost)
+                .serverPort(getMappedPort(1883))
+                .buildBlocking();
+        // connect first
+        client1.connectWith()
+                .cleanSession(true)
+                .send();
+        client2.connectWith()
+                .cleanSession(true)
+                .send();
+        // ensure we are clean
+        Mqtt3BlockingClient.Mqtt3Publishes publishes2 =
+                client2.publishes(MqttGlobalPublishFilter.ALL, false);
+        assertTrue(publishes2.receive(2, TimeUnit.SECONDS).isEmpty());
+        // disconnect the client
+        client2.disconnect();
+        // connect with clean session false
+        client2.connectWith()
+                .cleanSession(false)
+                .send();
+        // subscribe
+        Mqtt3SubAck subAck = client2.subscribeWith()
+                .topicFilter(topic)
+                .qos(MqttQos.AT_LEAST_ONCE)
+                .send();
+        Assert.assertEquals(subAck.getReturnCodes(), List.of(Mqtt3SubAckReturnCode.SUCCESS_MAXIMUM_QOS_1));
+        // get publishes and we need manual ack
+        publishes2 = client2.publishes(MqttGlobalPublishFilter.ALL, true);
+        // send some messages
+        for (int i = 0; i < numOfMessages; i++) {
+            client1.publishWith()
+                    .topic(topic)
+                    .qos(MqttQos.AT_LEAST_ONCE)
+                    .payload((i + "").getBytes(StandardCharsets.UTF_8))
+                    .send();
+        }
+        // test can receive message and don't ack this message
+        Optional<Mqtt3Publish> message = publishes2.receive(2, TimeUnit.SECONDS);
+        assertTrue(message.isPresent());
+        // close the client and expect broker saved the session
+        client2.disconnect();
+        // reconnect
+        client2.connectWith()
+                .cleanSession(false)
+                .send();
+        // expect can still receive messages by session
+        publishes2 = client2.publishes(MqttGlobalPublishFilter.ALL, false);
+        for (int i = 0; i < numOfMessages; i++) {
+            Optional<Mqtt3Publish> publishOptional = publishes2.receive(10, TimeUnit.SECONDS);
+            // We need to make sure we don't lose anything.
+            if (publishOptional.isEmpty()) {
+                fail("Unexpected message number");
+            }
+            // verify the message order
+            Mqtt3Publish publishPacket = publishOptional.get();
+            assertEquals(new String(publishPacket.getPayloadAsBytes()), i + "");
+        }
+        // send message twice
+        for (int i = 0; i < numOfMessages; i++) {
+            client1.publishWith()
+                    .topic(topic)
+                    .qos(MqttQos.AT_LEAST_ONCE)
+                    .payload((i + "").getBytes(StandardCharsets.UTF_8))
+                    .send();
+        }
+        // disconnect consumer
+        client2.disconnect();
+        // connect with clean session
+        client2.connectWith()
+                .cleanSession(true)
+                .send();
+        publishes2 = client2.publishes(MqttGlobalPublishFilter.ALL, false);
+        // ensure we are clean
+        assertTrue(publishes2.receive(10, TimeUnit.SECONDS).isEmpty());
+
+        // cleanup resources
+        client1.disconnect();
+        client2.unsubscribeWith().topicFilter(topic).send();
+        client2.disconnect();
+        pulsarAdmin.topics().delete(pulsarTopic.toString());
     }
 
     @Test
